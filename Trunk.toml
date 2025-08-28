@@ -1,0 +1,9 @@
+[build]
+release = false
+
+[serve]
+port = 8080
+open = true
+
+[watch]
+ignore = ["js"]
