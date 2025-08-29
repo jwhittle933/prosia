@@ -12,7 +12,10 @@ use components::format_header::FormatOptions;
 use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebSocketReturn};
 use uuid::Uuid;
 
-use crate::format::ScreenplayElement;
+use crate::format::{
+    element::{ElementComponent, ScreenPlayElement},
+    ScreenplayElementKind,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AppState {
@@ -75,8 +78,11 @@ pub fn App() -> impl IntoView {
 /// Default Home Page
 #[component]
 pub fn Scriptre() -> impl IntoView {
-    let (docs, set_docs) = signal(Vec::<ScreenplayElement>::new());
-    let (active_format, set_active_format) = signal(ScreenplayElement::General);
+    // for now, start with a general screenplay element
+    // this will need to fetch the content of the document being edited.
+    let (content, set_content) =
+        signal(vec![ScreenPlayElement::new(ScreenplayElementKind::General)]);
+    let (active_format, set_active_format) = signal(ScreenplayElementKind::General);
 
     view! {
         <ErrorBoundary fallback=|errors| {
@@ -110,7 +116,13 @@ pub fn Scriptre() -> impl IntoView {
 
                 <main class="page-container">
                     <article class="doc-page" role="textbox" aria-multiline="true">
-                        <p>"Start typing…"</p>
+                        <For
+                            each=move || content.get()
+                            key=|element| element.content.clone()
+                            let:element
+                        >
+                            <ElementComponent element set_active_format />
+                        </For>
                     </article>
                 </main>
             </div>

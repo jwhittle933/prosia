@@ -11,10 +11,12 @@ use icondata::{
 
 use crate::components::icon::IntoIcon;
 
+pub mod element;
+
 /// Paragraph-level element kinds in a screenplay.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum ScreenplayElement {
+pub enum ScreenplayElementKind {
     General,
     /// Scene heading (aka slugline): e.g., INT. OFFICE - DAY
     SceneHeading,
@@ -30,31 +32,31 @@ pub enum ScreenplayElement {
     Transition,
 }
 
-impl core::fmt::Display for ScreenplayElement {
+impl core::fmt::Display for ScreenplayElementKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let s = match self {
-            ScreenplayElement::General => "General",
-            ScreenplayElement::SceneHeading => "SceneHeading",
-            ScreenplayElement::Action => "Action",
-            ScreenplayElement::Character => "Character",
-            ScreenplayElement::Parenthetical => "Parenthetical",
-            ScreenplayElement::Dialogue => "Dialogue",
-            ScreenplayElement::Transition => "Transition",
+            ScreenplayElementKind::General => "General",
+            ScreenplayElementKind::SceneHeading => "SceneHeading",
+            ScreenplayElementKind::Action => "Action",
+            ScreenplayElementKind::Character => "Character",
+            ScreenplayElementKind::Parenthetical => "Parenthetical",
+            ScreenplayElementKind::Dialogue => "Dialogue",
+            ScreenplayElementKind::Transition => "Transition",
         };
         f.write_str(s)
     }
 }
 
-impl IntoIcon for ScreenplayElement {
+impl IntoIcon for ScreenplayElementKind {
     fn into_icon(&self) -> icondata_core::Icon {
         match self {
-            ScreenplayElement::SceneHeading => BiHeadingRegular,
-            ScreenplayElement::Action => BsLightning,
-            ScreenplayElement::Character => BsPersonArmsUp,
-            ScreenplayElement::Parenthetical => LuParentheses,
-            ScreenplayElement::Dialogue => BiCommentDetailRegular,
-            ScreenplayElement::Transition => MdiTransitDetour,
-            ScreenplayElement::General => BiCommentDetailRegular,
+            ScreenplayElementKind::SceneHeading => BiHeadingRegular,
+            ScreenplayElementKind::Action => BsLightning,
+            ScreenplayElementKind::Character => BsPersonArmsUp,
+            ScreenplayElementKind::Parenthetical => LuParentheses,
+            ScreenplayElementKind::Dialogue => BiCommentDetailRegular,
+            ScreenplayElementKind::Transition => MdiTransitDetour,
+            ScreenplayElementKind::General => BiCommentDetailRegular,
         }
     }
 }
