@@ -1,15 +1,8 @@
-#[cfg(feature = "server")]
 #[tokio::main]
 async fn main() {
     server::start().await;
 }
 
-#[cfg(not(feature = "server"))]
-fn main() {
-    server::start();
-}
-
-#[cfg(feature = "server")]
 mod server {
     use axum::{
         extract::{
@@ -22,7 +15,6 @@ mod server {
     };
     use dashmap::DashMap;
     use futures::{SinkExt, StreamExt};
-    use leptos::server_fn::server::Server;
     use std::{collections::HashMap, sync::Arc};
     use tokio::sync::{mpsc, oneshot};
     use tracing::{error, info, warn};
@@ -298,12 +290,5 @@ mod server {
         axum::serve(listener, app.into_make_service())
             .await
             .unwrap();
-    }
-}
-
-#[cfg(not(feature = "server"))]
-mod server {
-    pub fn start() {
-        println!("server feature must be enabled to run document server");
     }
 }

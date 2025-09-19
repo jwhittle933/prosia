@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!-- Add a plain CSS file: see https://trunkrs.dev/assets/#css -->
+    <!-- If using Tailwind with Leptos CSR, see https://trunkrs.dev/assets/#tailwind instead-->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="/styles-442ab80fd586c6df.css" integrity="sha384-m2vZdev3UVjS4cUMD9y/iAHJIMI9ImaXDsqT6mN1G0cZ35dOYwbCoOCcJ8sUQI0V"/>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css" rel="stylesheet" type="text/css" />
+
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+        rel="stylesheet">
+
+    <!-- include support for `wasm-bindgen --weak-refs` - see: https://rustwasm.github.io/docs/wasm-bindgen/reference/weak-references.html -->
+    <!-- <link data-trunk rel="rust" data-wasm-opt="z" data-weak-refs /> -->
+    
+<script type="module">
+import init, * as bindings from '/app-d7d51179b32aa2da.js';
+const wasm = await init({ module_or_path: '/app-d7d51179b32aa2da_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+<link rel="modulepreload" href="/app-d7d51179b32aa2da.js" crossorigin="anonymous" integrity="sha384-MNPuBgPkItU28mJ744b9xjfZ9WxG780ZuB+jT2x31K2vYQ2239RXp1hzf4fwuEL7"><link rel="preload" href="/app-d7d51179b32aa2da_bg.wasm" crossorigin="anonymous" integrity="sha384-BZPiVeAC8LBDm6eZULWi+DTK/YzPvnfOdxVs+FS4mc8sLQppLNAP3Mwk/2/h51fv" as="fetch" type="application/wasm"></head>
+
+<body></body>
+
+</html>

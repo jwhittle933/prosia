@@ -1,0 +1,2 @@
+run:
+    RUSTLOG=warn cargo run 

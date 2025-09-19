@@ -1,6 +1,9 @@
 /target
 /dist
 
+
+target
+
 node_modules
 .idea
 .vscode
