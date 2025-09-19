@@ -112,29 +112,32 @@ mod server {
             return;
         }
 
-        // Task: forward server messages to websocket
         let mut sink_task = tokio::spawn(async move {
             while let Some(msg) = server_rx.recv().await {
                 let frame = match msg {
                     ServerMsg::Update(mut payload) => {
+                        tracing::info!("ServerMsg::UPDATE");
                         let mut buf = Vec::with_capacity(1 + payload.len());
                         buf.push(TAG_UPDATE);
                         buf.append(&mut payload);
                         Message::Binary(buf.into())
                     }
                     ServerMsg::Awareness(mut payload) => {
+                        tracing::info!("ServerMsg::AWARENESS");
                         let mut buf = Vec::with_capacity(1 + payload.len());
                         buf.push(TAG_AWARENESS);
                         buf.append(&mut payload);
                         Message::Binary(buf.into())
                     }
                     ServerMsg::Snapshot(mut payload) => {
+                        tracing::info!("ServerMsg::SNAPSHOT");
                         let mut buf = Vec::with_capacity(1 + payload.len());
                         buf.push(TAG_SNAPSHOT);
                         buf.append(&mut payload);
                         Message::Binary(buf.into())
                     }
                     ServerMsg::PingPong => {
+                        tracing::info!("ServerMsg::PINGPONG");
                         let mut buf = Vec::with_capacity(1);
                         buf.push(TAG_PINGPONG);
                         Message::Binary(buf.into())
@@ -153,7 +156,6 @@ mod server {
             let _ = server_tx.send(ServerMsg::Snapshot(snapshot)).await;
         }
 
-        // Task: read websocket frames and forward to room
         while let Some(Ok(msg)) = stream.next().await {
             match msg {
                 Message::Binary(mut bytes) if !bytes.is_empty() => {
@@ -161,6 +163,7 @@ mod server {
                     let payload = bytes.split_off(1);
                     match tag {
                         TAG_UPDATE => {
+                            tracing::info!("Received UPDATE message");
                             let _ = handle
                                 .cmd_tx
                                 .send(RoomCmd::ClientUpdate {
@@ -170,6 +173,7 @@ mod server {
                                 .await;
                         }
                         TAG_AWARENESS => {
+                            tracing::info!("Received AWARENESS message");
                             let _ = handle
                                 .cmd_tx
                                 .send(RoomCmd::ClientAwareness {
@@ -179,6 +183,7 @@ mod server {
                                 .await;
                         }
                         TAG_SNAPSHOT_REQ => {
+                            tracing::info!("Received SNAPSHOT_REQ message");
                             let (tx, rx) = oneshot::channel();
                             let _ = handle.cmd_tx.send(RoomCmd::Snapshot { peer_id, tx }).await;
                             if let Ok(snapshot) = rx.await {
@@ -192,7 +197,6 @@ mod server {
                 }
                 Message::Close(_) => break,
                 Message::Ping(p) => {
-                    // Optional: respond to pings
                     let _ = server_tx.send(ServerMsg::PingPong).await;
                 }
                 _ => {}
@@ -231,7 +235,6 @@ mod server {
                 Vec::new()
             };
 
-            // Main loop
             while let Some(cmd) = cmd_rx.recv().await {
                 match cmd {
                     RoomCmd::Join { peer_id, tx } => {
@@ -301,6 +304,6 @@ mod server {
 #[cfg(not(feature = "server"))]
 mod server {
     pub fn start() {
-        println!("server feature not enabled");
+        println!("server feature must be enabled to run document server");
     }
 }

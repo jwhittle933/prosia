@@ -5,4 +5,4 @@ fmt:
     leptosfmt src
 
 server:
-    cargo run --bin document --features server
+    RUSTLOG=warn cargo run --bin document --features server

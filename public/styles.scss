@@ -240,6 +240,8 @@ body {
 }
 
 textarea.element-textarea {
+    @extend .font-main;
+
     width: 100%;
     min-height: 6rem;
     padding: 0.5rem;

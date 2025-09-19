@@ -1,6 +1,7 @@
-use leptos::{prelude::*, server::codee::string::FromToStringCodec};
+use std::sync::Arc;
+
+use leptos::prelude::*;
 use leptos_meta::*;
-use leptos_router::{components::*, path};
 
 use icondata::ChMenuMeatball;
 use leptos_icons::Icon;
@@ -9,13 +10,18 @@ pub(crate) mod components;
 pub mod format;
 
 use components::format_header::FormatOptions;
-use leptos_use::{core::ConnectionReadyState, use_websocket, UseWebSocketReturn};
+use leptos_use::{use_websocket, UseWebSocketReturn};
 use uuid::Uuid;
+
+// Import BinaryCodec for use_websocket
+// Removed: use leptos_use::codec::BinaryCodec;
 
 use crate::format::{
     element::{ElementComponent, ScreenPlayElement},
     ScreenplayElementKind,
 };
+
+mod socket;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AppState {
@@ -37,27 +43,35 @@ impl AppState {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    let (loaded, _) = signal(false);
 
     let UseWebSocketReturn {
         ready_state,
         message,
         send,
         open,
-        close,
         ..
-    } = use_websocket::<String, String, FromToStringCodec>("ws://localhost:3001/ws/lobby");
+    } = use_websocket::<socket::SocketMessage, socket::SocketMessage, socket::SocketCodec>(
+        "ws://localhost:3001/ws/lobby",
+    );
 
-    Effect::new(move |_| {
-        open();
+    // Only run this effect once, on mount
+    Effect::new(move |prev| {
+        let has_loaded = loaded.get();
+        if prev != Some(has_loaded) {
+            log::info!("Opening socket");
+            open();
+        }
+
+        has_loaded
     });
 
-    let send_message = move |_: String| {
-        send(&"Hello, world!".to_string());
-    };
+    provide_context(socket::WebsocketContext::new(
+        message,
+        Arc::new(send.clone()),
+    ));
 
-    let status = move || ready_state.get().to_string();
-
-    let connected = move || ready_state.get() == ConnectionReadyState::Open;
+    let websocket = expect_context::<socket::WebsocketContext>();
 
     view! {
         <Html attr:lang="en" attr:dir="ltr" attr:data-theme="light" />
@@ -75,9 +89,9 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Default Home Page
 #[component]
 pub fn Scriptre() -> impl IntoView {
+    let websocket = expect_context::<socket::WebsocketContext>();
     // for now, start with a general screenplay element
     // this will need to fetch the content of the document being edited.
     let (content, set_content) =

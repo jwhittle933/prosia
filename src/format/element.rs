@@ -36,8 +36,7 @@ pub fn ElementComponent(
                     element.content.1.set(ev.target().value());
                 }
                 on:click=move |_| set_active_format.set(element.kind.clone())
-            >
-            </textarea>
+            ></textarea>
         </fieldset>
     }
 }

@@ -11,7 +11,6 @@ server = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:rand",
-    "dep:yrs",
 ]
 
 
@@ -34,6 +33,7 @@ uuid = { version = "1.18.0", features = [
 leptos-use = "0.16.2"
 dashmap = "6.1.0"
 futures = "0.3.31"
+yrs = { version = "0.24.0" }
 
 
 # server
@@ -42,7 +42,7 @@ tokio = { version = "1.47.1", features = ["full"], optional = true }
 tracing = { version = "0.1.41", optional = true }
 tracing-subscriber = { version = "0.3.19", optional = true }
 rand = { version = "0.9.2", optional = true }
-yrs = { version = "0.24.0", optional = true }
+codee = "0.3.2"
 
 
 [dev-dependencies]
