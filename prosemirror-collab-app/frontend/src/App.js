@@ -1,6 +1,6 @@
 import React, { StrictMode, useCallback, useState } from "react";
-import { EditorState } from "prosemirror-state";
-import { baseKeymap, toggleMark } from "prosemirror-commands";
+import { EditorState, Plugin } from "prosemirror-state";
+import { baseKeymap, toggleMark, splitBlock } from "prosemirror-commands";
 import { gapCursor } from "prosemirror-gapcursor";
 import "prosemirror-gapcursor/style/gapcursor.css";
 import { history, redo, undo } from "prosemirror-history";
@@ -8,13 +8,63 @@ import { keymap } from "prosemirror-keymap";
 import "prosemirror-view/style/prosemirror.css";
 import { createRoot } from "react-dom/client";
 
-import { ProseMirror, ProseMirrorDoc, reactKeys, useEditorEventCallback } from "@handlewithcare/react-prosemirror";
+import { ProseMirror, ProseMirrorDoc, reactKeys, useEditorEventCallback, useEditorEffect } from "@handlewithcare/react-prosemirror";
 
 import { LinkTooltip } from "./LinkTooltip.js";
 import Menu from "./Menu.js";
 import { doc } from "./doc.js";
 import './App.css';
 import { schema } from "./editor/schema.js";
+
+// Custom Enter command to preserve screenplay formatting
+const preserveScreenplayFormatting = (state, dispatch) => {
+  const { selection } = state;
+  const { $from } = selection;
+
+  // Get the current paragraph
+  let currentClass = null;
+
+  // Walk up to find a paragraph with screenplay formatting
+  for (let i = $from.depth; i >= 1; i--) {
+    const node = $from.node(i);
+    if (node.type.name === 'paragraph' && node.attrs.class && node.attrs.class.startsWith('screenplay-')) {
+      currentClass = node.attrs.class;
+      break;
+    }
+  }
+
+  if (currentClass) {
+    // Do everything in a single transaction
+    const tr = state.tr;
+
+    // Split the paragraph
+    tr.split(selection.from);
+
+    // Get the position right after the split
+    const newPos = selection.from + 1;
+
+    // Apply formatting to the new paragraph
+    if (newPos < tr.doc.content.size) {
+      const $newPos = tr.doc.resolve(newPos);
+
+      // Find the new paragraph
+      for (let i = $newPos.depth; i >= 1; i--) {
+        const node = $newPos.node(i);
+        if (node.type.name === 'paragraph') {
+          const paragraphPos = $newPos.before(i);
+          tr.setNodeMarkup(paragraphPos, null, { class: currentClass });
+          break;
+        }
+      }
+    }
+
+    if (dispatch) dispatch(tr);
+    return true;
+  }
+
+  // No screenplay formatting, use default behavior
+  return splitBlock(state, dispatch);
+};
 
 const editorState = EditorState.create({
   schema,
@@ -34,35 +84,29 @@ const plugins = [
     "Mod-z": undo,
     "Mod-Shift-z": redo,
     "Mod-y": redo,
+    "Enter": preserveScreenplayFormatting,
   }),
   gapCursor(),
 ];
 
 const nodeViews = {};
 
-// Hollywood screenplay formatting styles
-const screenplayStyles = {
-  scene: { marginTop: '24px', marginBottom: '12px', fontWeight: 'bold', textTransform: 'uppercase' },
-  character: { marginTop: '24px', marginLeft: '220px', fontWeight: 'bold', textTransform: 'uppercase' },
-  dialogue: { marginLeft: '120px', marginRight: '120px' },
-  parenthetical: { marginLeft: '160px', fontStyle: 'italic' },
-  action: { marginTop: '12px', marginBottom: '12px' },
-  transition: { marginTop: '24px', textAlign: 'right', fontWeight: 'bold', textTransform: 'uppercase' }
-};
-
 function ToolbarButton({ onClick, active, children }) {
+  const handleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClick();
+  };
+
+  const handleMouseDown = (e) => {
+    e.preventDefault(); // Prevent focus loss
+  };
+
   return (
     <button
-      onClick={onClick}
-      style={{
-        padding: '8px 12px',
-        margin: '2px',
-        border: '1px solid #ccc',
-        background: active ? '#007acc' : 'white',
-        color: active ? 'white' : 'black',
-        cursor: 'pointer',
-        borderRadius: '4px'
-      }}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      className={`toolbar-button ${active ? 'active' : ''}`}
     >
       {children}
     </button>
@@ -70,62 +114,132 @@ function ToolbarButton({ onClick, active, children }) {
 }
 
 function Toolbar() {
+  const [currentFormat, setCurrentFormat] = useState(null);
+
+  // Track current formatting based on cursor position
+  useEditorEffect((view) => {
+    const { state } = view;
+    const { selection } = state;
+    const { $from } = selection;
+
+    // Find current screenplay formatting
+    let formatClass = null;
+    for (let i = $from.depth; i >= 1; i--) {
+      const node = $from.node(i);
+      if (node.type.name === 'paragraph' && node.attrs.class && node.attrs.class.startsWith('screenplay-')) {
+        formatClass = node.attrs.class;
+        break;
+      }
+    }
+
+    setCurrentFormat(formatClass);
+  });
+
   const toggleBold = useEditorEventCallback((view) => {
     const command = toggleMark(view.state.schema.marks.strong);
     command(view.state, view.dispatch, view);
+    view.focus(); // Ensure editor maintains focus
   });
 
   const toggleItalic = useEditorEventCallback((view) => {
     const command = toggleMark(view.state.schema.marks.em);
     command(view.state, view.dispatch, view);
+    view.focus(); // Ensure editor maintains focus
   });
 
-  const applyScreenplayFormat = useEditorEventCallback((view, formatType) => {
+  // Helper function to apply screenplay formatting to the current line/paragraph
+  const applyScreenplayFormat = (view, formatClass) => {
     const { state, dispatch } = view;
     const { selection } = state;
-    const tr = state.tr;
+    const { from } = selection;
 
-    const sampleText = {
-      scene: 'INT. OFFICE - DAY',
-      character: 'JOHN',
-      dialogue: 'This is dialogue text.',
-      parenthetical: '(beat)',
-      action: 'John walks to the window.',
-      transition: 'CUT TO:'
-    };
+    // Find the current paragraph
+    const $from = state.doc.resolve(from);
+    const paragraph = $from.node($from.depth);
+    const paragraphPos = $from.before($from.depth);
 
-    tr.insertText(sampleText[formatType] || formatType.toUpperCase(), selection.from, selection.to);
+    // Apply the class to the current paragraph
+    const tr = state.tr.setNodeMarkup(paragraphPos, null, {
+      ...paragraph.attrs,
+      class: formatClass
+    });
+
     dispatch(tr);
+    view.focus(); // Ensure editor maintains focus
+  };
+
+  // Create specific handlers for each screenplay format
+  const applySceneFormat = useEditorEventCallback((view) => {
+    applyScreenplayFormat(view, 'screenplay-scene');
+  });
+
+  const applyCharacterFormat = useEditorEventCallback((view) => {
+    applyScreenplayFormat(view, 'screenplay-character');
+  });
+
+  const applyDialogueFormat = useEditorEventCallback((view) => {
+    applyScreenplayFormat(view, 'screenplay-dialogue');
+  });
+
+  const applyParentheticalFormat = useEditorEventCallback((view) => {
+    applyScreenplayFormat(view, 'screenplay-parenthetical');
+  });
+
+  const applyActionFormat = useEditorEventCallback((view) => {
+    applyScreenplayFormat(view, 'screenplay-action');
+  });
+
+  const applyTransitionFormat = useEditorEventCallback((view) => {
+    applyScreenplayFormat(view, 'screenplay-transition');
+  });
+
+  // Clear formatting
+  const clearFormat = useEditorEventCallback((view) => {
+    const { state, dispatch } = view;
+    const { selection } = state;
+    const $from = state.doc.resolve(selection.from);
+    const paragraph = $from.node($from.depth);
+    const paragraphPos = $from.before($from.depth);
+
+    const tr = state.tr.setNodeMarkup(paragraphPos, null, {
+      ...paragraph.attrs,
+      class: null
+    });
+    dispatch(tr);
+    view.focus(); // Ensure editor maintains focus
   });
 
   return (
-    <div style={{ padding: '10px', borderBottom: '1px solid #ccc', background: '#f5f5f5' }}>
-      <div style={{ marginBottom: '8px' }}>
-        <strong>Text Formatting:</strong>
-        <ToolbarButton onClick={toggleBold}>Bold</ToolbarButton>
-        <ToolbarButton onClick={toggleItalic}>Italic</ToolbarButton>
-      </div>
+    <div className="toolbar-sticky">
+      <div className="toolbar">
+        <div className="toolbar-section">
+          <strong>Format:</strong>
+          <ToolbarButton onClick={toggleBold}>B</ToolbarButton>
+          <ToolbarButton onClick={toggleItalic}>I</ToolbarButton>
+          <ToolbarButton onClick={clearFormat} active={!currentFormat}>Clear</ToolbarButton>
+        </div>
 
-      <div>
-        <strong>Screenplay Elements:</strong>
-        <ToolbarButton onClick={() => applyScreenplayFormat(null, 'scene')}>
-          Scene Heading
-        </ToolbarButton>
-        <ToolbarButton onClick={() => applyScreenplayFormat(null, 'character')}>
-          Character
-        </ToolbarButton>
-        <ToolbarButton onClick={() => applyScreenplayFormat(null, 'dialogue')}>
-          Dialogue
-        </ToolbarButton>
-        <ToolbarButton onClick={() => applyScreenplayFormat(null, 'parenthetical')}>
-          Parenthetical
-        </ToolbarButton>
-        <ToolbarButton onClick={() => applyScreenplayFormat(null, 'action')}>
-          Action
-        </ToolbarButton>
-        <ToolbarButton onClick={() => applyScreenplayFormat(null, 'transition')}>
-          Transition
-        </ToolbarButton>
+        <div className="toolbar-section">
+          <strong>Screenplay:</strong>
+          <ToolbarButton onClick={applySceneFormat} active={currentFormat === 'screenplay-scene'}>
+            Scene
+          </ToolbarButton>
+          <ToolbarButton onClick={applyCharacterFormat} active={currentFormat === 'screenplay-character'}>
+            Character
+          </ToolbarButton>
+          <ToolbarButton onClick={applyDialogueFormat} active={currentFormat === 'screenplay-dialogue'}>
+            Dialogue
+          </ToolbarButton>
+          <ToolbarButton onClick={applyParentheticalFormat} active={currentFormat === 'screenplay-parenthetical'}>
+            Parenthetical
+          </ToolbarButton>
+          <ToolbarButton onClick={applyActionFormat} active={currentFormat === 'screenplay-action'}>
+            Action
+          </ToolbarButton>
+          <ToolbarButton onClick={applyTransitionFormat} active={currentFormat === 'screenplay-transition'}>
+            Transition
+          </ToolbarButton>
+        </div>
       </div>
     </div>
   );
@@ -142,10 +256,6 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <h1 className="App-title">ProseMirror Screenplay Editor</h1>
-      </header>
-
       <div className="editor-container">
         <ProseMirror
           state={state}
@@ -154,7 +264,7 @@ function App() {
           plugins={plugins}
         >
           <Toolbar />
-          <div style={{ minHeight: '400px', border: '1px solid #ccc', margin: '10px 0' }}>
+          <div className="editor-document">
             <ProseMirrorDoc spellCheck={false} />
           </div>
           <LinkTooltip />
