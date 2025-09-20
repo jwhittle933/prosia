@@ -17,7 +17,7 @@ async fn ws_handler(
     Path(doc_id): Path<String>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| socket::handle_socket(state, doc_id, socket))
+    ws.on_upgrade(move |socket| socket::handle_connect(state, doc_id, socket))
 }
 
 #[tokio::main]

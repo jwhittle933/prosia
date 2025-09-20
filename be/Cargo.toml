@@ -23,6 +23,8 @@ tokio = { version = "1.47.1", features = ["full"] }
 tracing = { version = "0.1.41" }
 tracing-subscriber = { version = "0.3.19" }
 rand = { version = "0.9.2" }
+serde_json = "1.0.145"
+serde = { version = "1.0.225", features = ["derive"] }
 
 
 [dev-dependencies]
