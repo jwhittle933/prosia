@@ -57,13 +57,7 @@ pub fn App() -> impl IntoView {
 
     // Only run this effect once, on mount
     Effect::new(move |prev| {
-        let has_loaded = loaded.get();
-        if prev != Some(has_loaded) {
-            log::info!("Opening socket");
-            open();
-        }
-
-        has_loaded
+        open();
     });
 
     provide_context(socket::WebsocketContext::new(
