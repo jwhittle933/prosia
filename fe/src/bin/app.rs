@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use scriptpad::{App, AppState};
+use fe::{App, AppState};
 
 fn main() {
     // set up logging

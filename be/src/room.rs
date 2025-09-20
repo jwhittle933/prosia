@@ -8,7 +8,12 @@ use yrs::{
     Any, Array, ArrayPrelim, Doc, GetString, ReadTxn, Text, Transact,
 };
 
-use crate::state::{RoomCmd, RoomHandle, ServerReply, ServerReplyJoin};
+use crate::{
+    peers::Peers,
+    state::{RoomCmd, RoomHandle},
+};
+
+use shared::server::ServerReply;
 
 #[tracing::instrument]
 pub fn spawn_room(doc_id: String) -> RoomHandle {
@@ -20,7 +25,7 @@ pub fn spawn_room(doc_id: String) -> RoomHandle {
         let doc = yrs::Doc::new();
         let text = doc.get_or_insert_text(doc_id.as_str());
 
-        let mut peers: HashMap<u64, mpsc::Sender<ServerReply>> = HashMap::new();
+        let mut peers = Peers::new();
 
         let apply_update = |bytes: &[u8]| {
             let _ = bytes; // placeholder
@@ -41,12 +46,12 @@ pub fn spawn_room(doc_id: String) -> RoomHandle {
             match cmd {
                 RoomCmd::Join { peer_id, tx } => {
                     tracing::info!(%doc_id, %peer_id, "peer joined");
-                    let _ = tx.try_send(ServerReply::Join(ServerReplyJoin {
+                    let _ = tx.try_send(ServerReply::Join {
                         id: peer_id,
-                        peers: peers.keys().cloned().collect::<Vec<_>>(),
-                    }));
+                        peers: peers.ids(),
+                    });
 
-                    peers.insert(peer_id, tx);
+                    peers.add(peer_id, tx);
                 }
                 RoomCmd::Leave { peer_id } => {
                     peers.remove(&peer_id);
@@ -54,21 +59,10 @@ pub fn spawn_room(doc_id: String) -> RoomHandle {
                 }
                 RoomCmd::ClientUpdate { peer_id, bytes } => {
                     apply_update(&bytes);
-                    for (&pid, tx) in peers.iter() {
-                        if pid == peer_id {
-                            continue;
-                        }
-
-                        let _ = tx.try_send(ServerReply::Update(bytes.clone()));
-                    }
+                    peers.notify(peer_id, ServerReply::Update(bytes.clone()));
                 }
                 RoomCmd::ClientAwareness { peer_id, bytes } => {
-                    for (&pid, tx) in peers.iter() {
-                        if pid == peer_id {
-                            continue;
-                        }
-                        let _ = tx.try_send(ServerReply::Awareness(bytes.clone()));
-                    }
+                    peers.notify(peer_id, ServerReply::Awareness(bytes.clone()));
                 }
                 RoomCmd::Snapshot { peer_id: _, tx } => {
                     let snap = encode_snapshot();

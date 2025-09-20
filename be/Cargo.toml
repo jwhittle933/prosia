@@ -1,39 +1,32 @@
 [package]
-name = "scriptpadbe"
+name = "be"
 version = "0.1.0"
 edition = "2021"
 
 
 [dependencies]
-log = "0.4"
+shared = { path = "../shared" }
+
+axum = { version = "0.8.4", features = ["ws"] }
 console_error_panic_hook = "0.1"
+dashmap = "6.1.0"
+futures = "0.3.31"
+log.workspace = true
+rand = { version = "0.9.2" }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { version = "1.47.1", features = ["full"] }
+tracing = { version = "0.1.41" }
+tracing-subscriber = { version = "0.3.19" }
 uuid = { version = "1.18.0", features = [
     "js",
     "serde",
     "v4",
 ], default-features = true }
-dashmap = "6.1.0"
-futures = "0.3.31"
-yrs = { version = "0.24.0" }
-
-
-# server
-axum = { version = "0.8.4", features = ["ws"] }
-tokio = { version = "1.47.1", features = ["full"] }
-tracing = { version = "0.1.41" }
-tracing-subscriber = { version = "0.3.19" }
-rand = { version = "0.9.2" }
-serde_json = "1.0.145"
-serde = { version = "1.0.225", features = ["derive"] }
+yrs.workspace = true
 
 
 [dev-dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 web-sys = { version = "0.3", features = ["Document", "Window"] }
-
-[profile.release]
-opt-level = 'z'
-lto = true
-codegen-units = 1
-panic = "abort"

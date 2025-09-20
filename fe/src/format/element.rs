@@ -14,6 +14,11 @@ impl ScreenPlayElement {
 
         Self { kind, content }
     }
+
+    pub fn with_content(self, content: &str) -> Self {
+        self.content.1.set(content.into());
+        self
+    }
 }
 
 #[component]

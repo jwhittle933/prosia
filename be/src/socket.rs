@@ -2,7 +2,9 @@ use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::state::{consts::*, RoomCmd, ServerReply};
+use crate::state::{into_message, RoomCmd};
+
+use shared::server::{ServerReply, ServerRequest};
 
 #[tracing::instrument(skip(state, socket))]
 pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socket: WebSocket) {
@@ -36,7 +38,7 @@ pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socke
     // Socket reply sink
     let sink_task = tokio::spawn(async move {
         while let Some(msg) = server_rx.recv().await {
-            if sink.send(msg.into()).await.is_err() {
+            if sink.send(into_message(msg)).await.is_err() {
                 break;
             }
         }
@@ -51,42 +53,48 @@ pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socke
     // Main socket rx loop
     while let Some(Ok(msg)) = stream.next().await {
         match msg {
-            Message::Binary(mut bytes) if !bytes.is_empty() => {
-                let tag = bytes[0];
-                let payload = bytes.split_off(1);
-                match tag {
-                    TAG_UPDATE => {
-                        tracing::info!("Received UPDATE message");
-                        let _ = handle
-                            .cmd_tx
-                            .send(RoomCmd::ClientUpdate {
-                                peer_id,
-                                bytes: payload.to_vec(),
-                            })
-                            .await;
-                    }
-                    TAG_AWARENESS => {
-                        tracing::info!("Received AWARENESS message");
-                        let _ = handle
-                            .cmd_tx
-                            .send(RoomCmd::ClientAwareness {
-                                peer_id,
-                                bytes: payload.to_vec(),
-                            })
-                            .await;
-                    }
-                    TAG_SNAPSHOT_REQ => {
-                        tracing::info!("Received SNAPSHOT_REQ message");
-                        let (tx, rx) = oneshot::channel();
-                        let _ = handle.cmd_tx.send(RoomCmd::Snapshot { peer_id, tx }).await;
-                        if let Ok(snapshot) = rx.await {
-                            let _ = server_tx.send(ServerReply::Snapshot(snapshot)).await;
-                        }
-                    }
-                    other => {
-                        tracing::warn!("unknown tag: {}", other);
+            Message::Binary(bytes) if !bytes.is_empty() => {
+                let r: ServerRequest = serde_json::from_slice(&bytes).unwrap();
+
+                match r {
+                    _ => {
+                        // handle them all
                     }
                 }
+
+                // match tag {
+                //     TAG_UPDATE => {
+                //         tracing::info!("Received UPDATE message");
+                //         let _ = handle
+                //             .cmd_tx
+                //             .send(RoomCmd::ClientUpdate {
+                //                 peer_id,
+                //                 bytes: payload.to_vec(),
+                //             })
+                //             .await;
+                //     }
+                //     TAG_AWARENESS => {
+                //         tracing::info!("Received AWARENESS message");
+                //         let _ = handle
+                //             .cmd_tx
+                //             .send(RoomCmd::ClientAwareness {
+                //                 peer_id,
+                //                 bytes: payload.to_vec(),
+                //             })
+                //             .await;
+                //     }
+                //     TAG_SNAPSHOT_REQ => {
+                //         tracing::info!("Received SNAPSHOT_REQ message");
+                //         let (tx, rx) = oneshot::channel();
+                //         let _ = handle.cmd_tx.send(RoomCmd::Snapshot { peer_id, tx }).await;
+                //         if let Ok(snapshot) = rx.await {
+                //             let _ = server_tx.send(ServerReply::Snapshot(snapshot)).await;
+                //         }
+                //     }
+                //     other => {
+                //         tracing::warn!("unknown tag: {}", other);
+                //     }
+                // }
             }
             Message::Close(_) => break,
             Message::Ping(_) => {

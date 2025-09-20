@@ -8,6 +8,7 @@ use axum::{
 };
 use dashmap::DashMap;
 
+mod peers;
 mod room;
 mod socket;
 mod state;

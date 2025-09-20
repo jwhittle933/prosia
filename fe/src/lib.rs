@@ -13,6 +13,8 @@ use components::format_header::FormatOptions;
 use leptos_use::{use_websocket, UseWebSocketReturn};
 use uuid::Uuid;
 
+use shared::server::{ServerReply, ServerRequest};
+
 // Import BinaryCodec for use_websocket
 // Removed: use leptos_use::codec::BinaryCodec;
 
@@ -51,7 +53,7 @@ pub fn App() -> impl IntoView {
         send,
         open,
         ..
-    } = use_websocket::<socket::SocketMessage, socket::SocketMessage, socket::SocketCodec>(
+    } = use_websocket::<ServerRequest, ServerReply, socket::SocketCodec>(
         "ws://localhost:3001/ws/lobby",
     );
 
@@ -78,19 +80,19 @@ pub fn App() -> impl IntoView {
         <Meta name="viewport" content="width=device-width, initial-scale=1.0" />
         // Full-viewport app shell
         <div class="app-shell">
-            <Scriptre />
+            <Composer />
         </div>
     }
 }
 
 #[component]
-pub fn Scriptre() -> impl IntoView {
+pub fn Composer() -> impl IntoView {
+    const MAX_PAGE_LINES: usize = 55;
+
     let websocket = expect_context::<socket::WebsocketContext>();
-    // for now, start with a general screenplay element
-    // this will need to fetch the content of the document being edited.
-    let (content, set_content) =
-        signal(vec![ScreenPlayElement::new(ScreenplayElementKind::General)]);
     let (active_format, set_active_format) = signal(ScreenplayElementKind::General);
+
+    let (page_count, set_page_count) = signal(1);
 
     view! {
         <ErrorBoundary fallback=|errors| {
@@ -123,18 +125,33 @@ pub fn Scriptre() -> impl IntoView {
                 </div>
 
                 <main class="page-container">
-                    <article class="doc-page" role="textbox" aria-multiline="true">
-                        <For
-                            each=move || content.get()
-                            key=|element| element.content.clone()
-                            let:element
-                        >
-                            <ElementComponent element set_active_format />
-                        </For>
-                    </article>
+                    <For each=move || 0..page_count.get() key=|i| *i let:i>
+                        <Page page=i set_active_format />
+                    </For>
                 </main>
             </div>
         </ErrorBoundary>
+    }
+}
+
+#[component]
+fn Page(page: usize, set_active_format: WriteSignal<ScreenplayElementKind>) -> impl IntoView {
+    let (position, set_position) = signal(0);
+
+    view! {
+        <article class="doc-page" role="textbox" aria-multiline="true">
+            <fieldset class="fieldset">
+                <div
+                    class="element-textarea"
+                    contenteditable="true"
+                    on:mousedown=move |_| {
+                        //
+                    }
+                >
+                    "Start something awesome"
+                </div>
+            </fieldset>
+        </article>
     }
 }
 

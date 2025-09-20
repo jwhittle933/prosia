@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["fe", "be", "shared"]
+
+[workspace.dependencies]
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0.145"
+log = "0.4"
+yrs = { version = "0.24.0" }
+
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = "abort"

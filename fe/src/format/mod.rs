@@ -17,6 +17,7 @@ pub mod element;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ScreenplayElementKind {
+    /// Any typing that doesn’t fit another category
     General,
     /// Scene heading (aka slugline): e.g., INT. OFFICE - DAY
     SceneHeading,

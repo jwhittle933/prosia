@@ -3,47 +3,40 @@ use leptos::prelude::*;
 
 use std::sync::Arc;
 
-// Tags
-const TAG_UPDATE: u8 = 0x00;
-const TAG_AWARENESS: u8 = 0x01;
-const TAG_SNAPSHOT_REQ: u8 = 0x02;
-const TAG_SNAPSHOT: u8 = 0x03;
-const TAG_PINGPONG: u8 = 0x04;
-
-#[derive(Debug, Clone)]
-pub struct SocketMessage(u8, Vec<u8>);
+use shared::server::{ServerReply, ServerRequest};
 
 #[derive(Clone)]
 pub struct WebsocketContext {
-    pub message: Signal<Option<SocketMessage>>,
-    send: Arc<dyn Fn(&SocketMessage) + Send + Sync>, // use Arc to make it easily cloneable
+    pub message: Signal<Option<ServerReply>>,
+    send: Arc<dyn Fn(&ServerRequest) + Send + Sync>, // use Arc to make it easily cloneable
 }
 
 impl WebsocketContext {
     pub fn new(
-        message: Signal<Option<SocketMessage>>,
-        send: Arc<dyn Fn(&SocketMessage) + Send + Sync>,
+        message: Signal<Option<ServerReply>>,
+        send: Arc<dyn Fn(&ServerRequest) + Send + Sync>,
     ) -> Self {
         let message_clone = message.clone();
         Effect::new(move |_| match message_clone.get() {
-            Some(msg) => match msg.0 {
-                TAG_PINGPONG => {
+            Some(msg) => match msg {
+                ServerReply::PingPong => {
                     log::info!("Received PINGPONG message");
                 }
-                TAG_UPDATE => {
-                    log::info!("Received UPDATE message with {} bytes", msg.1.len());
+                ServerReply::Update(payload) => {
+                    log::info!("Received UPDATE message with {} bytes", payload.len());
                 }
-                TAG_AWARENESS => {
-                    log::info!("Received AWARENESS message with {} bytes", msg.1.len());
+                ServerReply::Awareness(payload) => {
+                    log::info!("Received AWARENESS message with {} bytes", payload.len());
                 }
-                TAG_SNAPSHOT_REQ => {
-                    log::info!("Received SNAPSHOT_REQ message");
+                ServerReply::Snapshot(payload) => {
+                    log::info!("Received SNAPSHOT message with {} bytes", payload.len());
                 }
-                TAG_SNAPSHOT => {
-                    log::info!("Received SNAPSHOT message with {} bytes", msg.1.len());
-                }
-                _ => {
-                    log::warn!("Received unknown message tag: {}", msg.0);
+                ServerReply::Join { id, peers } => {
+                    log::info!(
+                        "Received JOIN message with id: {} and {} peers",
+                        id,
+                        peers.len()
+                    );
                 }
             },
             None => log::info!("No WebSocket message received"),
@@ -58,37 +51,32 @@ impl WebsocketContext {
 
     // create a method to avoid having to use parantheses around the field
     #[inline(always)]
-    pub fn send(&self, message: SocketMessage) {
+    pub fn send(&self, message: ServerRequest) {
         (self.send)(&message)
     }
 
     #[inline(always)]
     pub fn send_awareness(&self) {
-        self.send(SocketMessage(TAG_AWARENESS, vec![]));
+        // self.send(ServerRequest);
     }
 }
 
 pub struct SocketCodec;
 
-impl Decoder<SocketMessage> for SocketCodec {
+impl Decoder<ServerReply> for SocketCodec {
     type Error = ();
     type Encoded = [u8];
 
-    fn decode(val: &Self::Encoded) -> Result<SocketMessage, Self::Error> {
-        let tag = val[0];
-        let payload = val[1..].to_vec();
-
-        Ok(SocketMessage(tag, payload))
+    fn decode(val: &Self::Encoded) -> Result<ServerReply, Self::Error> {
+        Ok(serde_json::from_slice::<ServerReply>(&val).map_err(|_| ())?)
     }
 }
 
-impl Encoder<SocketMessage> for SocketCodec {
+impl Encoder<ServerRequest> for SocketCodec {
     type Error = ();
     type Encoded = Vec<u8>;
 
-    fn encode(val: &SocketMessage) -> Result<Self::Encoded, Self::Error> {
-        let mut encoded = vec![val.0];
-        encoded.extend_from_slice(&val.1);
-        Ok(encoded)
+    fn encode(val: &ServerRequest) -> Result<Self::Encoded, Self::Error> {
+        Ok(serde_json::to_vec(val).map_err(|_| ())?)
     }
 }
