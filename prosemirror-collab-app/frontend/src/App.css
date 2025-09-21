@@ -396,3 +396,45 @@
         width: calc(100% - 2in);
     }
 }
+
+/* Fix for smaller viewports - ensure editor area is clickable */
+@media (max-width: 1200px) {
+    .page-content {
+        min-height: 60vh;
+        /* Ensure content area has minimum height */
+        cursor: text;
+        /* Make entire content area show text cursor */
+    }
+
+    .ProseMirror {
+        min-height: 60vh;
+        /* Ensure editor fills the content area */
+        cursor: text;
+    }
+
+    /* Make the entire page clickable to focus editor */
+    .page {
+        cursor: text;
+    }
+}
+
+/* Additional fix for very small screens */
+@media (max-width: 768px) {
+    .page-content {
+        min-height: 70vh;
+    }
+
+    .ProseMirror {
+        min-height: 70vh;
+    }
+}
+
+/* Ensure clicking anywhere on page focuses editor */
+.page-content,
+.page {
+    cursor: text;
+}
+
+.page-content:empty {
+    cursor: text;
+}

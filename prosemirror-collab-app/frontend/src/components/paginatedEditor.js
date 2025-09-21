@@ -73,6 +73,39 @@ function PaginatedEditor() {
         };
     }, [pages.length]);
 
+    useEffect(() => {
+        const handlePageClick = (event) => {
+            // Find the ProseMirror editor
+            const proseMirrorEditor = document.querySelector('.ProseMirror');
+
+            // Check if we clicked on the page but not on an interactive element
+            const clickedOnPage = event.target.closest('.page') || event.target.closest('.page-content');
+            const clickedOnEditor = event.target.closest('.ProseMirror');
+
+            // If we clicked on the page area and there's an editor, focus it
+            if (clickedOnPage && proseMirrorEditor && !clickedOnEditor) {
+                proseMirrorEditor.focus();
+
+                // Try to position cursor at the end of content
+                const editorView = proseMirrorEditor.pmViewDesc?.view;
+                if (editorView) {
+                    const endPos = editorView.state.doc.content.size;
+                    const tr = editorView.state.tr.setSelection(
+                        editorView.state.selection.constructor.near(editorView.state.doc.resolve(endPos))
+                    );
+                    editorView.dispatch(tr);
+                }
+            }
+        };
+
+        // Add click listener to document to catch all clicks
+        document.addEventListener('click', handlePageClick);
+
+        return () => {
+            document.removeEventListener('click', handlePageClick);
+        };
+    }, []);
+
     // Function to determine if a page should show a number
     const getPageNumber = (pageIndex) => {
         // First page (index 0) is not numbered
