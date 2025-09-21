@@ -94,22 +94,3 @@ server.listen(PORT, () => {
   console.log(`HTTP API available at http://localhost:${PORT}`);
   console.log(`WebSocket server ready at ws://localhost:${PORT}`);
 });
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('Shutting down server...');
-  documentManager.destroy();
-  server.close(() => {
-    console.log('Server shut down gracefully');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('Received SIGINT, shutting down gracefully...');
-  documentManager.destroy();
-  server.close(() => {
-    console.log('Server shut down gracefully');
-    process.exit(0);
-  });
-});
