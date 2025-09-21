@@ -149,11 +149,9 @@ function App() {
       const editorState = createEditorState(initialDoc);
       setState(editorState);
 
-      // Start document syncing after editor is ready
       setTimeout(() => {
         if (clientRef.current && !clientRef.current.isDestroyed) {
           client.startSync(() => {
-            // Get current document state
             return clientRef.current.getCurrentDocumentState?.();
           });
         }
@@ -168,7 +166,6 @@ function App() {
     client.onDocumentUpdate = (message) => {
       console.log('Received document update from server');
 
-      // Prevent infinite loops when receiving updates
       if (isReceivingUpdate.current) {
         console.log('Already processing an update, skipping');
         return;
@@ -185,7 +182,6 @@ function App() {
       } catch (error) {
         console.error('Error applying document update:', error);
       } finally {
-        // Reset flag after a short delay
         setTimeout(() => {
           isReceivingUpdate.current = false;
         }, 100);
@@ -198,7 +194,6 @@ function App() {
       setIsConnected(false);
       setParticipantCount(1);
 
-      // Create fallback state if we don't have one
       const fallbackState = createEditorState(doc);
       setState(fallbackState);
     };

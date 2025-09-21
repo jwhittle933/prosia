@@ -2,7 +2,7 @@ const express = require('express');
 const WebSocket = require('ws');
 const http = require('http');
 const cors = require('cors');
-const DocumentManager = require('./DocumentManager');
+const DocumentManager = require('./document/manager');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,15 +10,12 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// Create WebSocket server attached to the HTTP server
 const wss = new WebSocket.Server({ server });
 
-// Single document instance for this demo
 const documentManager = new DocumentManager();
 
 console.log('Setting up WebSocket and HTTP server...');
 
-// WebSocket connection handling
 wss.on('connection', (ws) => {
   const clientId = documentManager.addClient(ws);
 
@@ -31,7 +28,6 @@ wss.on('connection', (ws) => {
         case 'documentUpdate':
           const result = documentManager.updateDocument(clientId, data.doc);
 
-          // Send acknowledgment back to the client
           ws.send(
             JSON.stringify({
               type: 'documentUpdateAck',
@@ -88,7 +84,6 @@ app.get('/api/clients', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 
-// Start the server (this will handle both HTTP and WebSocket)
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`HTTP API available at http://localhost:${PORT}`);

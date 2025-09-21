@@ -1,31 +1,29 @@
 const { Step } = require('prosemirror-transform');
-const { schema } = require('./prosemirror/schema');
-const { createDocument } = require('./prosemirror/doc');
+const { schema } = require('./schema');
+const { createDocument } = require('./doc');
 const { v4: uuidv4 } = require('uuid');
 const { Node } = require('prosemirror-model');
 
 // Document state management
 class DocumentManager {
     constructor() {
-        this.doc = createDocument(); // Initial document
+        this.doc = createDocument();
         this.version = 0;
         this.steps = [];
-        this.clients = new Map(); // clientId -> { ws, version, connectionTime }
-        this.lastDocumentHash = this.getDocumentHash(); // Track changes
+        this.clients = new Map();
+        this.lastDocumentHash = this.getDocumentHash();
 
-        // Clean up dead connections periodically
         this.cleanupInterval = setInterval(() => {
             this.cleanupDeadConnections();
-        }, 30000); // Every 30 seconds
+        }, 30000);
     }
 
     getDocumentHash() {
-        // Simple hash of document content for change detection
         return JSON.stringify(this.doc.toJSON());
     }
 
     addClient(ws) {
-        const clientId = uuidv4(); // Generate random UUID
+        const clientId = uuidv4();
         const connectionTime = new Date().toISOString();
 
         this.clients.set(clientId, {
