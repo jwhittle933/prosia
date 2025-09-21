@@ -10,27 +10,36 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// Create WebSocket server
+// Create WebSocket server attached to the HTTP server
 const wss = new WebSocket.Server({ server });
 
 // Single document instance for this demo
 const documentManager = new DocumentManager();
 
+console.log('Setting up WebSocket and HTTP server...');
+
 // WebSocket connection handling
 wss.on('connection', (ws) => {
   const clientId = documentManager.addClient(ws);
 
-  ws.on('message', (data) => {
+  ws.on('message', (message) => {
     try {
-      const message = JSON.parse(data);
+      const data = JSON.parse(message);
+      console.log(`Received message from ${clientId}:`, data.type);
 
-      switch (message.type) {
-        case 'steps':
-          documentManager.receiveSteps(
-            clientId,
-            message.version,
-            message.steps,
-            message.clientID
+      switch (data.type) {
+        case 'documentUpdate':
+          const result = documentManager.updateDocument(clientId, data.doc);
+
+          // Send acknowledgment back to the client
+          ws.send(
+            JSON.stringify({
+              type: 'documentUpdateAck',
+              success: result.success,
+              version: result.version,
+              noChanges: result.noChanges,
+              error: result.error
+            })
           );
           break;
 
@@ -39,19 +48,20 @@ wss.on('connection', (ws) => {
           break;
 
         default:
-          console.log('Unknown message type:', message.type);
+          console.log('Unknown message type:', data.type);
       }
     } catch (error) {
-      console.error('Error parsing message:', error);
+      console.error('Error processing message:', error);
     }
   });
 
   ws.on('close', () => {
+    console.log(`Client ${clientId} disconnected`);
     documentManager.removeClient(clientId);
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    console.error(`WebSocket error for client ${clientId}:`, error);
     documentManager.removeClient(clientId);
   });
 });
@@ -69,18 +79,37 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`WebSocket server ready for connections`);
+app.get('/api/clients', (req, res) => {
+  res.json({
+    clients: documentManager.getClientStats(),
+    totalClients: documentManager.clients.size
+  });
 });
 
+const PORT = process.env.PORT || 3001;
+
+// Start the server (this will handle both HTTP and WebSocket)
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`HTTP API available at http://localhost:${PORT}`);
+  console.log(`WebSocket server ready at ws://localhost:${PORT}`);
+});
+
+// Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  wss.close(() => {
-    server.close(() => {
-      process.exit(0);
-    });
+  console.log('Shutting down server...');
+  documentManager.destroy();
+  server.close(() => {
+    console.log('Server shut down gracefully');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully...');
+  documentManager.destroy();
+  server.close(() => {
+    console.log('Server shut down gracefully');
+    process.exit(0);
   });
 });

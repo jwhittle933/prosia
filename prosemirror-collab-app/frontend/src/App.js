@@ -7,6 +7,7 @@ import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import "prosemirror-view/style/prosemirror.css";
 import { Node } from "prosemirror-model";
+import { TextSelection } from "prosemirror-state";
 
 import { ProseMirror } from "@handlewithcare/react-prosemirror";
 
@@ -64,15 +65,20 @@ function App() {
   const [state, setState] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
-  const [participantCount, setParticipantCount] = useState(1); // Default to 1 for offline mode
+  const [participantCount, setParticipantCount] = useState(1);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+
   const clientRef = useRef(null);
   const hasInitialized = useRef(false);
+  const editorViewRef = useRef(null);
+  const isReceivingUpdate = useRef(false);
+  const shouldFocusEditor = useRef(true);
 
-  // Create editor state
-  const createEditorState = useCallback((doc) => {
+  // Create editor state - stable function that doesn't change
+  const createEditorState = useCallback((docNode) => {
     return EditorState.create({
       schema,
-      doc,
+      doc: docNode,
       plugins: [
         history(),
         keymap({
@@ -90,9 +96,37 @@ function App() {
     });
   }, []);
 
-  // Initialize collaboration
+  // Auto-focus the editor when it's ready
+  const focusEditor = useCallback(() => {
+    if (!editorViewRef.current || !shouldFocusEditor.current) {
+      return;
+    }
+
+    try {
+      console.log('Focusing editor');
+
+      // Focus the editor first
+      editorViewRef.current.focus();
+
+      // Set selection to the end of the document
+      const { doc } = editorViewRef.current.state;
+      const endPos = doc.content.size;
+
+      // Create a text selection at the end
+      const selection = TextSelection.create(doc, endPos);
+      const tr = editorViewRef.current.state.tr.setSelection(selection);
+      editorViewRef.current.dispatch(tr);
+
+      shouldFocusEditor.current = false; // Only auto-focus once
+      console.log('Editor focused and cursor positioned');
+    } catch (error) {
+      console.error('Error focusing editor:', error);
+    }
+  }, []);
+
+  // Initialize collaboration - this effect should only run once
   useEffect(() => {
-    // Prevent duplicate initialization in React StrictMode
+    // Prevent duplicate initialization
     if (hasInitialized.current) {
       console.log('Already initialized, skipping');
       return;
@@ -103,6 +137,7 @@ function App() {
     const client = new CollaborationClient('ws://localhost:3001');
     clientRef.current = client;
 
+    // Setup event handlers
     client.onConnected = (message) => {
       console.log('Connected to collaboration server');
       setIsConnected(true);
@@ -113,6 +148,16 @@ function App() {
       const initialDoc = Node.fromJSON(schema, message.doc);
       const editorState = createEditorState(initialDoc);
       setState(editorState);
+
+      // Start document syncing after editor is ready
+      setTimeout(() => {
+        if (clientRef.current && !clientRef.current.isDestroyed) {
+          client.startSync(() => {
+            // Get current document state
+            return clientRef.current.getCurrentDocumentState?.();
+          });
+        }
+      }, 1000);
     };
 
     client.onParticipantUpdate = (message) => {
@@ -120,17 +165,42 @@ function App() {
       setParticipantCount(message.totalParticipants);
     };
 
+    client.onDocumentUpdate = (message) => {
+      console.log('Received document update from server');
+
+      // Prevent infinite loops when receiving updates
+      if (isReceivingUpdate.current) {
+        console.log('Already processing an update, skipping');
+        return;
+      }
+
+      isReceivingUpdate.current = true;
+
+      try {
+        const updatedDoc = Node.fromJSON(schema, message.doc);
+        const newState = createEditorState(updatedDoc);
+        setState(newState);
+        setLastSyncTime(new Date().toLocaleTimeString());
+        console.log('Document updated from server');
+      } catch (error) {
+        console.error('Error applying document update:', error);
+      } finally {
+        // Reset flag after a short delay
+        setTimeout(() => {
+          isReceivingUpdate.current = false;
+        }, 100);
+      }
+    };
+
     client.onConnectionError = (error) => {
       console.error('Connection error:', error);
       setConnectionError('Backend server not running - using offline mode');
       setIsConnected(false);
-      setParticipantCount(1); // Only this user in offline mode
+      setParticipantCount(1);
 
-      // Fallback to local document only if we don't have a state yet
-      if (!state) {
-        const editorState = createEditorState(doc);
-        setState(editorState);
-      }
+      // Create fallback state if we don't have one
+      const fallbackState = createEditorState(doc);
+      setState(fallbackState);
     };
 
     // Try to connect
@@ -138,14 +208,14 @@ function App() {
       console.error('Failed to connect to collaboration server:', error);
       setConnectionError('Backend server not running - using offline mode');
       setIsConnected(false);
-      setParticipantCount(1); // Only this user in offline mode
+      setParticipantCount(1);
 
-      // Fallback to local document
-      const editorState = createEditorState(doc);
-      setState(editorState);
+      // Create fallback state
+      const fallbackState = createEditorState(doc);
+      setState(fallbackState);
     });
 
-    // Cleanup on unmount
+    // Cleanup function
     return () => {
       console.log('Cleaning up collaboration client');
       if (clientRef.current) {
@@ -154,11 +224,39 @@ function App() {
       }
       hasInitialized.current = false;
     };
-  }, []); // Empty dependency array to ensure this only runs once
+  }, []); // FIXED: Empty dependency array - only run once!
+
+  // Set up document getter for the client when state changes
+  useEffect(() => {
+    if (clientRef.current && state) {
+      clientRef.current.getCurrentDocumentState = () => state.doc;
+    }
+  }, [state]);
 
   const dispatchTransaction = useCallback(function (tr) {
     setState((prev) => prev.apply(tr));
   }, []);
+
+  const handleEditorMount = useCallback((view) => {
+    console.log('Editor view mounted');
+    editorViewRef.current = view;
+
+    // Wait for next tick to ensure view is fully ready
+    requestAnimationFrame(() => {
+      if (shouldFocusEditor.current) {
+        focusEditor();
+      }
+    });
+  }, [focusEditor]);
+
+  // Also try to focus when state updates (in case mount happens before state is set)
+  useEffect(() => {
+    if (editorViewRef.current && state && shouldFocusEditor.current) {
+      requestAnimationFrame(() => {
+        focusEditor();
+      });
+    }
+  }, [state, focusEditor]);
 
   if (!state) {
     return (
@@ -197,11 +295,17 @@ function App() {
               participant{participantCount !== 1 ? 's' : ''}
             </span>
           </div>
+          {lastSyncTime && (
+            <div className="sync-status">
+              <span className="sync-label">Last sync: {lastSyncTime}</span>
+            </div>
+          )}
         </div>
         <ProseMirror
           state={state}
           dispatchTransaction={dispatchTransaction}
           nodeViews={nodeViews}
+          mount={handleEditorMount}
         >
           <Toolbar />
           <PaginatedEditor />
