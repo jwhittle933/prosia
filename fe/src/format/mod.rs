@@ -62,7 +62,6 @@ impl IntoIcon for ScreenplayElementKind {
     }
 }
 
-/// Error when parsing a [`ScreenplayElement`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParseElementError;
 

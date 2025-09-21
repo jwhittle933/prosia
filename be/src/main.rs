@@ -23,7 +23,6 @@ async fn ws_handler(
 
 #[tokio::main]
 async fn main() {
-    // Init logging
     tracing_subscriber::fmt()
         .with_target(false)
         .compact()

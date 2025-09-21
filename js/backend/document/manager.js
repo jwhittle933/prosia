@@ -1,10 +1,8 @@
-const { Step } = require('prosemirror-transform');
 const { schema } = require('./schema');
 const { createDocument } = require('./doc');
 const { v4: uuidv4 } = require('uuid');
 const { Node } = require('prosemirror-model');
 
-// Document state management
 class DocumentManager {
     constructor() {
         this.doc = createDocument();
@@ -35,7 +33,6 @@ class DocumentManager {
 
         console.log(`Client ${clientId} connected at ${connectionTime}. Total participants: ${this.clients.size}`);
 
-        // Send initial document state with participant count
         ws.send(JSON.stringify({
             type: 'init',
             doc: this.doc.toJSON(),
@@ -44,7 +41,6 @@ class DocumentManager {
             totalParticipants: this.clients.size
         }));
 
-        // Broadcast to all clients about the updated participant count
         setTimeout(() => {
             this.broadcastParticipantUpdate();
         }, 100);
@@ -60,7 +56,6 @@ class DocumentManager {
         }
     }
 
-    // Handle document updates from clients
     updateDocument(clientId, documentJSON) {
         const client = this.clients.get(clientId);
         if (!client) {
@@ -69,13 +64,9 @@ class DocumentManager {
         }
 
         try {
-            // Update client activity
             client.lastActivity = Date.now();
-
-            // Convert JSON to ProseMirror document
             const newDoc = Node.fromJSON(schema, documentJSON);
 
-            // Check if document actually changed
             const newDocHash = JSON.stringify(newDoc.toJSON());
             if (newDocHash === this.lastDocumentHash) {
                 console.log(`No changes detected from client ${clientId}`);
@@ -84,12 +75,10 @@ class DocumentManager {
 
             console.log(`Document updated by client ${clientId}`);
 
-            // Update server document
             this.doc = newDoc;
             this.version += 1;
             this.lastDocumentHash = newDocHash;
 
-            // Broadcast the updated document to all other clients
             this.broadcastDocumentUpdate(clientId);
 
             return { success: true, version: this.version };
@@ -100,7 +89,6 @@ class DocumentManager {
         }
     }
 
-    // Broadcast document updates to all clients except the sender
     broadcastDocumentUpdate(excludeClientId) {
         const updateMessage = JSON.stringify({
             type: 'documentUpdate',
@@ -128,7 +116,6 @@ class DocumentManager {
             }
         });
 
-        // Remove failed clients
         clientsToRemove.forEach(clientId => {
             this.removeClient(clientId);
         });
@@ -140,7 +127,7 @@ class DocumentManager {
         const deadClients = [];
 
         this.clients.forEach((client, clientId) => {
-            if (client.ws.readyState !== 1) { // WebSocket.OPEN = 1
+            if (client.ws.readyState !== 1) { // WebSocket.OPEN
                 deadClients.push(clientId);
             }
         });

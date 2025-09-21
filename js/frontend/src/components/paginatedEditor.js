@@ -5,7 +5,6 @@ import { Plugin } from "prosemirror-state";
 const LINES_PER_PAGE = 55;
 const LINE_HEIGHT_PT = 14.4; // 12pt * 1.2 line-height
 
-// Plugin to handle pagination
 const paginationPlugin = new Plugin({
     view(editorView) {
         return new PaginationView(editorView);
@@ -20,7 +19,6 @@ class PaginationView {
     }
 
     update() {
-        // Delay pagination update to allow DOM to settle
         setTimeout(this.updatePagination, 0);
     }
 
@@ -28,28 +26,24 @@ class PaginationView {
         const editorElement = this.view.dom;
         if (!editorElement) return;
 
-        // Count lines by measuring paragraph heights
         const paragraphs = editorElement.querySelectorAll('p');
         let totalLines = 0;
 
         paragraphs.forEach(p => {
             const rect = p.getBoundingClientRect();
             const lines = Math.ceil(rect.height / LINE_HEIGHT_PT);
-            totalLines += Math.max(1, lines); // Minimum 1 line per paragraph
+            totalLines += Math.max(1, lines);
         });
 
         const pagesNeeded = Math.max(1, Math.ceil(totalLines / LINES_PER_PAGE));
 
-        // Dispatch custom event to update page count
         const event = new CustomEvent('paginationUpdate', {
             detail: { pagesNeeded, totalLines }
         });
         document.dispatchEvent(event);
     }
 
-    destroy() {
-        // Cleanup if needed
-    }
+    destroy() { }
 }
 
 function PaginatedEditor() {
@@ -75,18 +69,14 @@ function PaginatedEditor() {
 
     useEffect(() => {
         const handlePageClick = (event) => {
-            // Find the ProseMirror editor
             const proseMirrorEditor = document.querySelector('.ProseMirror');
 
-            // Check if we clicked on the page but not on an interactive element
             const clickedOnPage = event.target.closest('.page') || event.target.closest('.page-content');
             const clickedOnEditor = event.target.closest('.ProseMirror');
 
-            // If we clicked on the page area and there's an editor, focus it
             if (clickedOnPage && proseMirrorEditor && !clickedOnEditor) {
                 proseMirrorEditor.focus();
 
-                // Try to position cursor at the end of content
                 const editorView = proseMirrorEditor.pmViewDesc?.view;
                 if (editorView) {
                     const endPos = editorView.state.doc.content.size;
@@ -98,7 +88,6 @@ function PaginatedEditor() {
             }
         };
 
-        // Add click listener to document to catch all clicks
         document.addEventListener('click', handlePageClick);
 
         return () => {
@@ -106,13 +95,9 @@ function PaginatedEditor() {
         };
     }, []);
 
-    // Function to determine if a page should show a number
     const getPageNumber = (pageIndex) => {
-        // First page (index 0) is not numbered
         if (pageIndex === 0) return null;
 
-        // Second page (index 1) gets number 2
-        // This follows the rule that the first numbered page is page 2
         return pageIndex + 1;
     };
 
@@ -131,7 +116,6 @@ function PaginatedEditor() {
                             )}
                             {index > 0 && (
                                 <div className="page-overflow">
-                                    {/* Content that flows from previous pages will be handled by CSS */}
                                 </div>
                             )}
                         </div>

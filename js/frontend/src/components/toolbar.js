@@ -10,7 +10,7 @@ function ToolbarButton({ onClick, active, children }) {
     };
 
     const handleMouseDown = (e) => {
-        e.preventDefault(); // Prevent focus loss
+        e.preventDefault();
     };
 
     return (
@@ -27,13 +27,11 @@ function ToolbarButton({ onClick, active, children }) {
 function Toolbar() {
     const [currentFormat, setCurrentFormat] = useState(null);
 
-    // Track current formatting based on cursor position
     useEditorEffect((view) => {
         const { state } = view;
         const { selection } = state;
         const { $from } = selection;
 
-        // Find current screenplay formatting
         let formatClass = null;
         for (let i = $from.depth; i >= 1; i--) {
             const node = $from.node(i);
@@ -49,37 +47,33 @@ function Toolbar() {
     const toggleBold = useEditorEventCallback((view) => {
         const command = toggleMark(view.state.schema.marks.strong);
         command(view.state, view.dispatch, view);
-        view.focus(); // Ensure editor maintains focus
+        view.focus();
     });
 
     const toggleItalic = useEditorEventCallback((view) => {
         const command = toggleMark(view.state.schema.marks.em);
         command(view.state, view.dispatch, view);
-        view.focus(); // Ensure editor maintains focus
+        view.focus();
     });
 
-    // Helper function to apply screenplay formatting to the current line/paragraph
     const applyScreenplayFormat = (view, formatClass) => {
         const { state, dispatch } = view;
         const { selection } = state;
         const { from } = selection;
 
-        // Find the current paragraph
         const $from = state.doc.resolve(from);
         const paragraph = $from.node($from.depth);
         const paragraphPos = $from.before($from.depth);
 
-        // Apply the class to the current paragraph
         const tr = state.tr.setNodeMarkup(paragraphPos, null, {
             ...paragraph.attrs,
             class: formatClass
         });
 
         dispatch(tr);
-        view.focus(); // Ensure editor maintains focus
+        view.focus();
     };
 
-    // Create specific handlers for each screenplay format
     const applySceneFormat = useEditorEventCallback((view) => {
         applyScreenplayFormat(view, 'screenplay-scene');
     });
@@ -104,7 +98,6 @@ function Toolbar() {
         applyScreenplayFormat(view, 'screenplay-transition');
     });
 
-    // Clear formatting
     const clearFormat = useEditorEventCallback((view) => {
         const { state, dispatch } = view;
         const { selection } = state;
@@ -117,7 +110,7 @@ function Toolbar() {
             class: null
         });
         dispatch(tr);
-        view.focus(); // Ensure editor maintains focus
+        view.focus();
     });
 
     return (

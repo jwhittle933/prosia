@@ -2,10 +2,8 @@ import React, { useCallback, useState, useEffect, useRef } from "react";
 import { EditorState } from "prosemirror-state";
 import { baseKeymap, toggleMark, splitBlock } from "prosemirror-commands";
 import { gapCursor } from "prosemirror-gapcursor";
-import "prosemirror-gapcursor/style/gapcursor.css";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
-import "prosemirror-view/style/prosemirror.css";
 import { Node } from "prosemirror-model";
 import { TextSelection } from "prosemirror-state";
 
@@ -13,11 +11,14 @@ import { ProseMirror } from "@handlewithcare/react-prosemirror";
 
 import { Toolbar } from './components/toolbar.js';
 import PaginatedEditor, { paginationPlugin } from './components/paginatedEditor.js';
-import CollaborationClient from './collaboration/client.js';
+import DocumentClient from './document/client.js';
 
 import { doc } from "./doc.js";
-import './App.css';
 import { schema } from "./editor/schema.js";
+
+import './App.css';
+import "prosemirror-view/style/prosemirror.css";
+import "prosemirror-gapcursor/style/gapcursor.css";
 
 const preserveScreenplayFormatting = (state, dispatch) => {
   const { selection } = state;
@@ -74,7 +75,6 @@ function App() {
   const isReceivingUpdate = useRef(false);
   const shouldFocusEditor = useRef(true);
 
-  // Create editor state - stable function that doesn't change
   const createEditorState = useCallback((docNode) => {
     return EditorState.create({
       schema,
@@ -96,7 +96,6 @@ function App() {
     });
   }, []);
 
-  // Auto-focus the editor when it's ready
   const focusEditor = useCallback(() => {
     if (!editorViewRef.current || !shouldFocusEditor.current) {
       return;
@@ -105,28 +104,23 @@ function App() {
     try {
       console.log('Focusing editor');
 
-      // Focus the editor first
       editorViewRef.current.focus();
 
-      // Set selection to the end of the document
       const { doc } = editorViewRef.current.state;
       const endPos = doc.content.size;
 
-      // Create a text selection at the end
       const selection = TextSelection.create(doc, endPos);
       const tr = editorViewRef.current.state.tr.setSelection(selection);
       editorViewRef.current.dispatch(tr);
 
-      shouldFocusEditor.current = false; // Only auto-focus once
+      shouldFocusEditor.current = false;
       console.log('Editor focused and cursor positioned');
     } catch (error) {
       console.error('Error focusing editor:', error);
     }
   }, []);
 
-  // Initialize collaboration - this effect should only run once
   useEffect(() => {
-    // Prevent duplicate initialization
     if (hasInitialized.current) {
       console.log('Already initialized, skipping');
       return;
@@ -134,17 +128,15 @@ function App() {
     hasInitialized.current = true;
 
     console.log('Initializing collaboration client');
-    const client = new CollaborationClient('ws://localhost:3001');
+    const client = new DocumentClient('ws://localhost:3001');
     clientRef.current = client;
 
-    // Setup event handlers
     client.onConnected = (message) => {
       console.log('Connected to collaboration server');
       setIsConnected(true);
       setConnectionError(null);
       setParticipantCount(message.totalParticipants || 1);
 
-      // Create editor state with document from server
       const initialDoc = Node.fromJSON(schema, message.doc);
       const editorState = createEditorState(initialDoc);
       setState(editorState);
@@ -198,19 +190,16 @@ function App() {
       setState(fallbackState);
     };
 
-    // Try to connect
     client.connect().catch(error => {
-      console.error('Failed to connect to collaboration server:', error);
+      console.error('Failed to connect to server:', error);
       setConnectionError('Backend server not running - using offline mode');
       setIsConnected(false);
       setParticipantCount(1);
 
-      // Create fallback state
       const fallbackState = createEditorState(doc);
       setState(fallbackState);
     });
 
-    // Cleanup function
     return () => {
       console.log('Cleaning up collaboration client');
       if (clientRef.current) {
@@ -219,9 +208,8 @@ function App() {
       }
       hasInitialized.current = false;
     };
-  }, []); // FIXED: Empty dependency array - only run once!
+  }, []);
 
-  // Set up document getter for the client when state changes
   useEffect(() => {
     if (clientRef.current && state) {
       clientRef.current.getCurrentDocumentState = () => state.doc;
@@ -236,7 +224,6 @@ function App() {
     console.log('Editor view mounted');
     editorViewRef.current = view;
 
-    // Wait for next tick to ensure view is fully ready
     requestAnimationFrame(() => {
       if (shouldFocusEditor.current) {
         focusEditor();
@@ -244,7 +231,6 @@ function App() {
     });
   }, [focusEditor]);
 
-  // Also try to focus when state updates (in case mount happens before state is set)
   useEffect(() => {
     if (editorViewRef.current && state && shouldFocusEditor.current) {
       requestAnimationFrame(() => {
@@ -259,7 +245,7 @@ function App() {
         <div className="loading">
           {connectionError ? (
             <div className="error-message">
-              <div>⚠️ {connectionError}</div>
+              <div>{connectionError}</div>
               <div style={{ fontSize: '14px', marginTop: '10px', color: '#666' }}>
                 Make sure the backend server is running: <code>cd backend && npm start</code>
               </div>

@@ -1,8 +1,8 @@
 {
-  "name": "prosemirror-collab-frontend",
+  "name": "prosia-frontend",
   "version": "1.0.0",
   "private": true,
-  "description": "React SPA with ProseMirror rich text editor for collaborative editing",
+  "description": "prosia editor",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",

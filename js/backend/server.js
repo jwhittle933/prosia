@@ -62,7 +62,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-// REST endpoints
 app.get('/api/document', (req, res) => {
   res.json(documentManager.getDocument());
 });

@@ -15,9 +15,6 @@ use uuid::Uuid;
 
 use shared::server::{ServerReply, ServerRequest};
 
-// Import BinaryCodec for use_websocket
-// Removed: use leptos_use::codec::BinaryCodec;
-
 use crate::format::{
     element::{ElementComponent, ScreenPlayElement},
     ScreenplayElementKind,
@@ -57,7 +54,6 @@ pub fn App() -> impl IntoView {
         "ws://localhost:3001/ws/lobby",
     );
 
-    // Only run this effect once, on mount
     Effect::new(move |prev| {
         open();
     });
@@ -72,13 +68,10 @@ pub fn App() -> impl IntoView {
     view! {
         <Html attr:lang="en" attr:dir="ltr" attr:data-theme="light" />
 
-        // sets the document title
         <Title text="Welcome to Leptos CSR" />
 
-        // injects metadata in the <head> of the page
         <Meta charset="UTF-8" />
         <Meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        // Full-viewport app shell
         <div class="app-shell">
             <Composer />
         </div>
@@ -155,7 +148,6 @@ fn Page(page: usize, set_active_format: WriteSignal<ScreenplayElementKind>) -> i
     }
 }
 
-/// A parameterized incrementing button
 #[component]
 pub fn Button(#[prop(default = 1)] increment: i32) -> impl IntoView {
     let (count, set_count) = signal(0);

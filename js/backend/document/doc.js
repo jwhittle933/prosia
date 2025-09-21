@@ -3,7 +3,6 @@ const { EditorState } = require("prosemirror-state");
 const { schema } = require('./schema');
 const { JSDOM } = require('jsdom');
 
-// Define the ProseMirror document structure
 const initialDoc = Node.fromJSON(schema, {
   type: "doc",
   content: [
@@ -19,7 +18,6 @@ const initialDoc = Node.fromJSON(schema, {
   ],
 });
 
-// Function to create a new EditorState
 function createEditorState(doc = initialDoc) {
   return EditorState.create({
     doc,
@@ -28,13 +26,11 @@ function createEditorState(doc = initialDoc) {
 }
 
 function createDocument() {
-  // Create a completely empty document with just a single empty paragraph
   return schema.node('doc', null, [
     schema.node('paragraph', null, [])
   ]);
 }
 
-// Export the initial document and the function to create editor state
 module.exports = {
   initialDoc,
   createEditorState,

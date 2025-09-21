@@ -1,7 +1,7 @@
 {
-  "name": "prosemirror-collab-backend",
+  "name": "prosia-backend",
   "version": "1.0.0",
-  "description": "Backend server for collaborative screenplay editing",
+  "description": "prosia backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

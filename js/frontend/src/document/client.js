@@ -1,6 +1,4 @@
-import { collab, receiveTransaction, sendableSteps, getVersion } from 'prosemirror-collab';
-
-class CollaborationClient {
+class DocumentClient {
     constructor(url) {
         this.url = url;
         this.ws = null;
@@ -12,7 +10,6 @@ class CollaborationClient {
         this.isDestroyed = false;
         this.clientId = null;
 
-        // Document sync state
         this.lastSentDocumentHash = null;
         this.syncTimer = null;
         this.pendingSync = false;
@@ -71,7 +68,6 @@ class CollaborationClient {
                     this.isConnecting = false;
                     this.stopSync();
 
-                    // Only trigger connection error if this wasn't a manual disconnect
                     if (!this.isDestroyed && event.code !== 1000) {
                         console.log('Unexpected disconnect, calling error handler');
                         if (this.onConnectionError) {
@@ -121,12 +117,10 @@ class CollaborationClient {
                 break;
 
             case 'pong':
-                // Handle ping/pong
                 break;
         }
     }
 
-    // Start the sync timer when editor is ready
     startSync(getCurrentDocument) {
         if (this.isDestroyed) {
             console.log('Client is destroyed, not starting sync');
@@ -143,7 +137,7 @@ class CollaborationClient {
             if (!this.isDestroyed) {
                 this.syncDocument();
             }
-        }, 5000); // Every 5 seconds
+        }, 5000);
 
         console.log('Document sync started (5 second intervals)');
     }
@@ -164,7 +158,6 @@ class CollaborationClient {
         try {
             let currentDoc;
 
-            // Try to get document from the getter function
             if (this.getCurrentDocument) {
                 currentDoc = this.getCurrentDocument();
             } else if (this.getCurrentDocumentState) {
@@ -178,7 +171,6 @@ class CollaborationClient {
 
             const currentDocHash = JSON.stringify(currentDoc.toJSON());
 
-            // Check if document has changed since last sync
             if (currentDocHash === this.lastSentDocumentHash) {
                 console.log('No document changes detected, skipping sync');
                 return;
@@ -201,9 +193,8 @@ class CollaborationClient {
         }
     }
 
-    // Force an immediate sync (useful for testing)
     forceSyncDocument() {
-        this.lastSentDocumentHash = null; // Force sync regardless of changes
+        this.lastSentDocumentHash = null;
         this.syncDocument();
     }
 
@@ -213,10 +204,10 @@ class CollaborationClient {
         this.stopSync();
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.close(1000, 'Normal closure'); // Normal closure code
+            this.ws.close(1000, 'Normal closure');
             this.ws = null;
         }
     }
 }
 
-export default CollaborationClient;
+export default DocumentClient;

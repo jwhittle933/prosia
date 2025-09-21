@@ -28,7 +28,7 @@ pub fn spawn_room(doc_id: String) -> RoomHandle {
         let mut peers = Peers::new();
 
         let apply_update = |bytes: &[u8]| {
-            let _ = bytes; // placeholder
+            let _ = bytes;
 
             let mut txn = doc.transact_mut();
             text.insert(&mut txn, 0, "Hello from peer!");
