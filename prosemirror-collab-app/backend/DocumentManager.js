@@ -76,7 +76,7 @@ class DocumentManager {
 
             // Convert JSON to ProseMirror document
             const newDoc = Node.fromJSON(schema, documentJSON);
-            
+
             // Check if document actually changed
             const newDocHash = JSON.stringify(newDoc.toJSON());
             if (newDocHash === this.lastDocumentHash) {
@@ -85,7 +85,7 @@ class DocumentManager {
             }
 
             console.log(`Document updated by client ${clientId}`);
-            
+
             // Update server document
             this.doc = newDoc;
             this.version += 1;
