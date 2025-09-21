@@ -28,19 +28,22 @@ class DocumentManager {
             lastActivity: Date.now()
         });
 
-        console.log(`Client ${clientId} connected at ${connectionTime}. Total clients: ${this.clients.size}`);
+        console.log(`Client ${clientId} connected at ${connectionTime}. Total participants: ${this.clients.size}`);
 
-        // Send initial document state with unique client ID
+        // Send initial document state with participant count
         ws.send(JSON.stringify({
             type: 'init',
             doc: this.doc.toJSON(),
             version: this.version,
-            clientId, // This ensures each tab gets a unique ID
-            totalClients: this.clients.size
+            clientId,
+            totalParticipants: this.clients.size
         }));
 
-        // Notify other clients about new connection
-        this.broadcastClientUpdate();
+        // Broadcast to all clients (including the new one) about the updated participant count
+        // Use setTimeout to ensure the new client has processed the init message first
+        setTimeout(() => {
+            this.broadcastParticipantUpdate();
+        }, 100);
 
         return clientId;
     }
@@ -49,10 +52,10 @@ class DocumentManager {
         if (this.clients.has(clientId)) {
             const client = this.clients.get(clientId);
             this.clients.delete(clientId);
-            console.log(`Client ${clientId} disconnected. Total clients: ${this.clients.size}`);
+            console.log(`Client ${clientId} disconnected. Total participants: ${this.clients.size}`);
 
-            // Notify remaining clients about disconnection
-            this.broadcastClientUpdate();
+            // Broadcast the updated participant count to remaining clients
+            this.broadcastParticipantUpdate();
         }
     }
 
@@ -67,30 +70,59 @@ class DocumentManager {
 
         if (deadClients.length > 0) {
             console.log(`Cleaning up ${deadClients.length} dead connections`);
+            let participantCountChanged = false;
+
             deadClients.forEach(clientId => {
-                this.removeClient(clientId);
+                if (this.clients.has(clientId)) {
+                    this.clients.delete(clientId);
+                    participantCountChanged = true;
+                }
             });
+
+            // Only broadcast if the participant count actually changed
+            if (participantCountChanged) {
+                this.broadcastParticipantUpdate();
+            }
         }
     }
 
-    broadcastClientUpdate() {
-        const clientUpdateMessage = JSON.stringify({
-            type: 'clientUpdate',
-            totalClients: this.clients.size,
+    broadcastParticipantUpdate() {
+        const participantCount = this.clients.size;
+        const participantUpdateMessage = JSON.stringify({
+            type: 'participantUpdate',
+            totalParticipants: participantCount,
             timestamp: new Date().toISOString()
         });
+
+        console.log(`Broadcasting participant update: ${participantCount} participants to ${this.clients.size} clients`);
+
+        let successfulBroadcasts = 0;
+        const clientsToRemove = [];
 
         this.clients.forEach((client, clientId) => {
             if (client.ws.readyState === 1) { // WebSocket.OPEN = 1
                 try {
-                    client.ws.send(clientUpdateMessage);
+                    client.ws.send(participantUpdateMessage);
+                    successfulBroadcasts++;
                 } catch (error) {
-                    console.error(`Failed to send client update to ${clientId}:`, error);
-                    // Mark for cleanup
-                    this.removeClient(clientId);
+                    console.error(`Failed to send participant update to client ${clientId}:`, error);
+                    clientsToRemove.push(clientId);
                 }
+            } else {
+                // Mark dead connections for removal
+                clientsToRemove.push(clientId);
             }
         });
+
+        // Remove failed clients (but don't broadcast again to avoid infinite loops)
+        clientsToRemove.forEach(clientId => {
+            if (this.clients.has(clientId)) {
+                console.log(`Removing dead client ${clientId}`);
+                this.clients.delete(clientId);
+            }
+        });
+
+        console.log(`Successfully broadcast participant update to ${successfulBroadcasts} clients`);
     }
 
     receiveSteps(clientId, version, steps, clientID) {
@@ -197,7 +229,7 @@ class DocumentManager {
         return {
             doc: this.doc.toJSON(),
             version: this.version,
-            totalClients: this.clients.size
+            totalParticipants: this.clients.size
         };
     }
 

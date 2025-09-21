@@ -64,6 +64,7 @@ function App() {
   const [state, setState] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [participantCount, setParticipantCount] = useState(1); // Default to 1 for offline mode
   const clientRef = useRef(null);
   const hasInitialized = useRef(false);
 
@@ -106,6 +107,7 @@ function App() {
       console.log('Connected to collaboration server');
       setIsConnected(true);
       setConnectionError(null);
+      setParticipantCount(message.totalParticipants || 1);
 
       // Create editor state with document from server
       const initialDoc = Node.fromJSON(schema, message.doc);
@@ -113,10 +115,16 @@ function App() {
       setState(editorState);
     };
 
+    client.onParticipantUpdate = (message) => {
+      console.log('Participant count updated:', message.totalParticipants);
+      setParticipantCount(message.totalParticipants);
+    };
+
     client.onConnectionError = (error) => {
       console.error('Connection error:', error);
       setConnectionError('Backend server not running - using offline mode');
       setIsConnected(false);
+      setParticipantCount(1); // Only this user in offline mode
 
       // Fallback to local document only if we don't have a state yet
       if (!state) {
@@ -130,6 +138,7 @@ function App() {
       console.error('Failed to connect to collaboration server:', error);
       setConnectionError('Backend server not running - using offline mode');
       setIsConnected(false);
+      setParticipantCount(1); // Only this user in offline mode
 
       // Fallback to local document
       const editorState = createEditorState(doc);
@@ -174,11 +183,20 @@ function App() {
     <div className="App">
       <div className="editor-container">
         <div className="connection-status">
-          {isConnected ? (
-            <span className="connected">🟢 Connected</span>
-          ) : (
-            <span className="offline">📴 Offline Mode</span>
-          )}
+          <div className="status-info">
+            {isConnected ? (
+              <span className="connected">🟢 Connected</span>
+            ) : (
+              <span className="offline">📴 Offline Mode</span>
+            )}
+          </div>
+          <div className="participant-count">
+            <span className="participants-icon">👥</span>
+            <span className="participants-number">{participantCount}</span>
+            <span className="participants-label">
+              participant{participantCount !== 1 ? 's' : ''}
+            </span>
+          </div>
         </div>
         <ProseMirror
           state={state}

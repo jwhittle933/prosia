@@ -6,6 +6,7 @@ class CollaborationClient {
         this.ws = null;
         this.onConnected = null;
         this.onConnectionError = null;
+        this.onParticipantUpdate = null;
         this.isConnecting = false;
         this.isDestroyed = false;
     }
@@ -39,13 +40,19 @@ class CollaborationClient {
 
                     try {
                         const message = JSON.parse(event.data);
+                        console.log('Received WebSocket message:', message.type, message);
 
                         if (message.type === 'init') {
-                            console.log('Received initial document');
+                            console.log('Received initial document with', message.totalParticipants, 'participants');
                             if (this.onConnected) {
                                 this.onConnected(message);
                             }
                             resolve(message);
+                        } else if (message.type === 'participantUpdate') {
+                            console.log(`Participant update received: ${message.totalParticipants} participants`);
+                            if (this.onParticipantUpdate) {
+                                this.onParticipantUpdate(message);
+                            }
                         }
                     } catch (error) {
                         console.error('Error parsing WebSocket message:', error);
