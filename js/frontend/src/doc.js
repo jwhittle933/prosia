@@ -21,11 +21,9 @@ const htmlContent = `
 const tempDiv = document.createElement("div");
 tempDiv.innerHTML = htmlContent;
 
-// Parse the HTML content using ProseMirror's DOMParser
 const domParser = DOMParser.fromSchema(schema);
 export const doc = domParser.parse(tempDiv);
 
-// Alternative: Create a simple empty document with just an empty paragraph
 // export const doc = schema.node("doc", null, [
 //   schema.node("paragraph", { class: "screenplay-action" })
 // ]);

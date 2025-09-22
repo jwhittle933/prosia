@@ -34,9 +34,8 @@ class DocumentManager {
 
         console.log(`Client ${clientId} connected at ${connectionTime}. Total participants: ${this.clients.size}`);
 
-        // FIXED: Changed from 'init' to 'connected'
         ws.send(JSON.stringify({
-            type: 'connected',  // Changed from 'init' to 'connected'
+            type: 'connected',
             doc: this.doc.toJSON(),
             version: this.version,
             clientId,
@@ -70,11 +69,9 @@ class DocumentManager {
 
             const { version, steps: stepsJSON, clientID, timestamp } = stepData;
 
-            // Check if the client's version matches our current version
             if (version !== this.version) {
                 console.warn(`Version mismatch: client ${clientId} has version ${version}, server has ${this.version}`);
 
-                // FIXED: Send current document state to resync client
                 client.ws.send(JSON.stringify({
                     type: 'documentUpdate',
                     doc: this.doc.toJSON(),
@@ -89,12 +86,10 @@ class DocumentManager {
                 };
             }
 
-            // Convert JSON steps back to Step objects
             const steps = stepsJSON.map(stepJSON => Step.fromJSON(schema, stepJSON.step || stepJSON));
 
             console.log(`Processing ${steps.length} steps from client ${clientId} at version ${version}`);
 
-            // Apply steps to the document
             let currentDoc = this.doc;
             const appliedSteps = [];
             const clientIDs = [];
@@ -125,11 +120,9 @@ class DocumentManager {
                 }
             }
 
-            // Update document and version
             this.doc = currentDoc;
             this.version += steps.length;
 
-            // Store steps in history
             this.steps.push(...appliedSteps.map((step, index) => ({
                 step: step.toJSON(),
                 clientID: clientIDs[index],
@@ -137,12 +130,10 @@ class DocumentManager {
                 timestamp
             })));
 
-            // Update client version
             client.version = this.version;
 
             console.log(`Successfully applied ${steps.length} steps. New version: ${this.version}`);
 
-            // FIXED: Send steps back to the sender so their collab plugin can clear sendable steps
             const processedSteps = appliedSteps.map((step, index) => ({
                 step: step.toJSON(),
                 clientId: clientIDs[index],
@@ -156,7 +147,6 @@ class DocumentManager {
                 timestamp: new Date().toISOString()
             }));
 
-            // Broadcast steps to other clients (excluding sender)
             this.broadcastSteps(clientId, {
                 version: this.version,
                 steps: appliedSteps.map(step => step.toJSON()),
@@ -181,14 +171,13 @@ class DocumentManager {
     }
 
     broadcastSteps(excludeClientId, stepData) {
-        // FIXED: Properly format steps for client consumption
         const stepsMessage = JSON.stringify({
             type: 'steps',
             version: stepData.version,
             steps: stepData.steps.map((step, index) => ({
-                step: step,  // step is already JSON from stepData
+                step: step,
                 clientId: stepData.clientIDs[index],
-                schema: schema.spec  // Add schema for Step.fromJSON
+                schema: schema.spec
             })),
             timestamp: new Date().toISOString()
         });

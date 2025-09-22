@@ -63,7 +63,6 @@ const preserveScreenplayFormatting = (state, dispatch) => {
 
 const nodeViews = {};
 
-// Error boundary component
 class EditorErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -98,7 +97,6 @@ class EditorErrorBoundary extends React.Component {
   }
 }
 
-// Component that uses useEditorEffect - must be inside ProseMirror context
 function ViewCapture({ onViewReady }) {
   const viewRef = useRef(null);
 
@@ -218,12 +216,10 @@ function App() {
         return;
       }
 
-      // Store cursor position before applying transaction
       if (editorViewRef.current && tr.selection) {
         lastCursorPosition.current = tr.selection.from;
       }
 
-      // Don't interfere when receiving server updates
       if (isReceivingUpdate.current) {
         console.log('Skipping state update - receiving server update');
         return;
@@ -283,7 +279,6 @@ function App() {
 
         console.log('Current version:', currentVersion, 'Received version:', stepData.version);
 
-        // Apply the received steps using ProseMirror's collab functionality
         const tr = receiveTransaction(
           currentState,
           stepData.steps,
@@ -293,10 +288,8 @@ function App() {
         if (tr) {
           console.log('Applying received transaction with', stepData.steps.length, 'steps');
 
-          // Apply to the editor view - this handles the collaboration state properly
           editorViewRef.current.dispatch(tr);
 
-          // Update React state to match, but preserve selection if possible
           const newState = editorViewRef.current.state;
           setState(newState);
 
@@ -308,7 +301,7 @@ function App() {
       } finally {
         setTimeout(() => {
           isReceivingUpdate.current = false;
-        }, 50); // Reduced timeout
+        }, 50);
       }
     };
 
@@ -345,23 +338,18 @@ function App() {
           return;
         }
 
-        // Store current selection before update
         const currentSelection = currentView.state.selection;
         const currentCursor = currentSelection.from;
 
         console.log('Storing cursor position:', currentCursor);
 
-        // Create new state with server document
         const updatedDoc = Node.fromJSON(schema, message.doc);
         const newState = createEditorState(updatedDoc, message.version);
 
-        // Update state first
         setState(newState);
 
-        // Update view state
         currentView.updateState(newState);
 
-        // Try to restore cursor position after a brief delay
         setTimeout(() => {
           try {
             if (currentView && currentView.state) {
@@ -374,7 +362,6 @@ function App() {
               const tr = currentView.state.tr.setSelection(newSelection);
               currentView.dispatch(tr);
 
-              // Focus the editor to ensure cursor is visible
               currentView.focus();
             }
           } catch (error) {

@@ -33,7 +33,6 @@ wss.on('connection', (ws) => {
             timestamp: data.timestamp
           });
 
-          // Send acknowledgment back to sender
           ws.send(
             JSON.stringify({
               type: 'stepAck',
@@ -69,7 +68,6 @@ wss.on('connection', (ws) => {
     } catch (error) {
       console.error('Error processing message:', error);
 
-      // Send error response if we can determine the message type
       try {
         const data = JSON.parse(message);
         if (data.type === 'steps') {
@@ -81,7 +79,7 @@ wss.on('connection', (ws) => {
           }));
         }
       } catch (parseError) {
-        // Ignore parse errors in error handler
+        // 
       }
     }
   });

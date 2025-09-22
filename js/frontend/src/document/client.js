@@ -53,7 +53,6 @@ class DocumentClient {
 
                         this.handleMessage(message);
 
-                        // FIXED: Check for both 'connected' and 'init' for backward compatibility
                         if (message.type === 'connected' || message.type === 'init') {
                             this.clientId = message.clientId;
                             console.log('Received initial document with', message.totalParticipants, 'participants');
@@ -103,7 +102,7 @@ class DocumentClient {
 
         switch (message.type) {
             case 'connected':
-            case 'init':  // Handle both for compatibility
+            case 'init':
                 console.log('Received connected message:', message);
                 this.clientId = message.clientId;
                 if (this.onConnected) {
@@ -121,14 +120,14 @@ class DocumentClient {
                 break;
 
             case 'participantUpdate':
-            case 'participant-update':  // Handle both for compatibility
+            case 'participant-update':
                 if (this.onParticipantUpdate) {
                     this.onParticipantUpdate(message);
                 }
                 break;
 
             case 'documentUpdate':
-            case 'document-update':  // Handle both for compatibility
+            case 'document-update':
                 if (this.onDocumentUpdate) {
                     this.onDocumentUpdate(message);
                 }
@@ -148,7 +147,6 @@ class DocumentClient {
         try {
             console.log('Processing received steps:', message);
 
-            // FIXED: Get schema from the editor view instead of the message
             const view = this.getEditorView();
             if (!view || !view.state || !view.state.schema) {
                 console.error('No editor view or schema available for step processing');
@@ -157,14 +155,11 @@ class DocumentClient {
 
             const schema = view.state.schema;
 
-            // FIXED: Handle the steps structure properly
             const steps = message.steps.map(stepData => {
-                // stepData might be the step JSON directly, or wrapped in an object
                 const stepJSON = stepData.step || stepData;
                 return Step.fromJSON(schema, stepJSON);
             });
 
-            // FIXED: Extract client IDs properly
             const clientIDs = message.steps.map(stepData => stepData.clientId || stepData.clientID || this.clientId);
 
             console.log(`Processed ${steps.length} steps from server`);
@@ -206,12 +201,11 @@ class DocumentClient {
 
         this.getEditorView = getEditorView;
 
-        // FIXED: Reduce sync frequency to prevent spamming
         this.syncTimer = setInterval(() => {
             if (!this.isDestroyed) {
                 this.syncSteps();
             }
-        }, 1000); // Increased to 1 second to reduce load
+        }, 1000);
 
         console.log('Step sync started (1000ms intervals)');
     }
@@ -242,13 +236,11 @@ class DocumentClient {
             const sendable = sendableSteps(view.state);
 
             if (!sendable || !sendable.steps || !sendable.steps.length) {
-                // No steps to send - this is normal, don't log
                 return;
             }
 
             console.log(`SyncSteps: Found ${sendable.steps.length} steps to send, version: ${sendable.version}`);
 
-            // Convert steps to JSON for transmission
             const stepsData = sendable.steps.map((step, index) => {
                 console.log(`SyncSteps: Step ${index}:`, step);
                 return {
@@ -335,7 +327,6 @@ class DocumentClient {
             this.ws = null;
         }
 
-        // Clear pending state
         this.pendingSteps = [];
         this.stepsSent = 0;
     }
