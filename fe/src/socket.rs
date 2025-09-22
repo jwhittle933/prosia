@@ -8,7 +8,7 @@ use shared::server::{ServerReply, ServerRequest};
 #[derive(Clone)]
 pub struct WebsocketContext {
     pub message: Signal<Option<ServerReply>>,
-    send: Arc<dyn Fn(&ServerRequest) + Send + Sync>, // use Arc to make it easily cloneable
+    send: Arc<dyn Fn(&ServerRequest) + Send + Sync>,
 }
 
 impl WebsocketContext {
@@ -49,7 +49,6 @@ impl WebsocketContext {
         s
     }
 
-    // create a method to avoid having to use parantheses around the field
     #[inline(always)]
     pub fn send(&self, message: ServerRequest) {
         (self.send)(&message)
@@ -57,7 +56,7 @@ impl WebsocketContext {
 
     #[inline(always)]
     pub fn send_awareness(&self) {
-        // self.send(ServerRequest);
+        //
     }
 }
 

@@ -6,7 +6,6 @@ use tokio::sync::{mpsc, oneshot};
 
 use shared::server::ServerReply;
 
-// Room registry
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) rooms: Arc<DashMap<String, RoomHandle>>,

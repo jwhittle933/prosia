@@ -9,7 +9,6 @@ use shared::server::{ServerReply, ServerRequest};
 #[tracing::instrument(skip(state, socket))]
 pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socket: WebSocket) {
     tracing::info!(%doc_id, "new websocket connection");
-    // Get or create room
     let handle = state
         .rooms
         .entry(doc_id.clone())
@@ -18,11 +17,9 @@ pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socke
 
     let (mut sink, mut stream) = socket.split();
 
-    // Channel to receive messages from room
     let (server_tx, mut server_rx) = mpsc::channel::<ServerReply>(64);
     let peer_id = rand::random::<u64>();
 
-    // Join room
     if let Err(e) = handle
         .cmd_tx
         .send(RoomCmd::Join {
@@ -35,7 +32,6 @@ pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socke
         return;
     }
 
-    // Socket reply sink
     let sink_task = tokio::spawn(async move {
         while let Some(msg) = server_rx.recv().await {
             if sink.send(into_message(msg)).await.is_err() {
@@ -50,7 +46,6 @@ pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socke
         let _ = server_tx.send(ServerReply::Snapshot(snapshot)).await;
     }
 
-    // Main socket rx loop
     while let Some(Ok(msg)) = stream.next().await {
         match msg {
             Message::Binary(bytes) if !bytes.is_empty() => {
@@ -104,7 +99,6 @@ pub async fn handle_connect(state: crate::state::AppState, doc_id: String, socke
         }
     }
 
-    // Cleanup
     let _ = handle.cmd_tx.send(RoomCmd::Leave { peer_id }).await;
     tracing::info!(%doc_id, %peer_id, "websocket disconnected");
     sink_task.abort();
