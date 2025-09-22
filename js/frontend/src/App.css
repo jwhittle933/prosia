@@ -12,7 +12,6 @@
     background-color: #f9f9f9;
 }
 
-/* Sticky toolbar */
 .toolbar-sticky {
     position: sticky;
     top: 0;
@@ -24,7 +23,6 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* Toolbar styling to match Google Docs */
 .toolbar {
     padding: 12px 16px;
     background: #f8f9fa;
@@ -78,7 +76,6 @@
     box-shadow: 0 0 8px rgba(26, 115, 232, 0.3);
 }
 
-/* Paginated container */
 .paginated-container {
     max-width: 8.5in;
     margin: 40px auto;
@@ -86,7 +83,6 @@
     background-color: #f9f9f9;
 }
 
-/* Individual page styling */
 .page {
     background: white;
     width: 8.5in;
@@ -105,7 +101,6 @@
 .page-content {
     flex: 1;
     height: calc(11in - 2in);
-    /* Full height minus padding */
     overflow: hidden;
     position: relative;
 }
@@ -113,16 +108,13 @@
 .page-number {
     position: absolute;
     top: 0.5in;
-    /* Half-inch from the top of the page */
     right: 1in;
-    /* Flush to the right margin */
     font-size: 12pt;
     color: #000;
     font-family: "Courier New", Courier, monospace;
     font-weight: normal;
 }
 
-/* Editor content within pages */
 .editor-content {
     height: 100%;
     overflow: visible;
@@ -133,7 +125,6 @@
     overflow: hidden;
 }
 
-/* ProseMirror editor styles */
 .ProseMirror {
     outline: none;
     background: transparent;
@@ -145,7 +136,6 @@
     border: none;
     height: 100%;
     overflow: visible;
-    /* Enable content to flow across pages */
     column-fill: auto;
 }
 
@@ -156,7 +146,6 @@
 .ProseMirror p {
     margin: 0 0 12pt 0;
     line-height: 1.2;
-    /* Prevent paragraphs from breaking across pages inappropriately */
     break-inside: avoid-column;
     page-break-inside: avoid;
 }
@@ -218,7 +207,6 @@
     margin: 3pt 0;
 }
 
-/* Screenplay specific styles */
 .screenplay-scene {
     margin-top: 24pt;
     margin-bottom: 12pt;
@@ -281,7 +269,6 @@
     break-before: avoid;
 }
 
-/* Loading and connection status styles */
 .loading {
     display: flex;
     justify-content: center;
@@ -367,7 +354,6 @@
     color: #9e9e9e;
 }
 
-/* Responsive design */
 @media (max-width: 1024px) {
     .paginated-container {
         max-width: 95%;
@@ -385,7 +371,6 @@
         padding: 8px 12px;
     }
 
-    /* Adjust screenplay formatting for mobile */
     .screenplay-dialogue {
         max-width: calc(100% - 2in);
         width: calc(100% - 2in);
@@ -397,28 +382,22 @@
     }
 }
 
-/* Fix for smaller viewports - ensure editor area is clickable */
 @media (max-width: 1200px) {
     .page-content {
         min-height: 60vh;
-        /* Ensure content area has minimum height */
         cursor: text;
-        /* Make entire content area show text cursor */
     }
 
     .ProseMirror {
         min-height: 60vh;
-        /* Ensure editor fills the content area */
         cursor: text;
     }
 
-    /* Make the entire page clickable to focus editor */
     .page {
         cursor: text;
     }
 }
 
-/* Additional fix for very small screens */
 @media (max-width: 768px) {
     .page-content {
         min-height: 70vh;
@@ -429,7 +408,6 @@
     }
 }
 
-/* Ensure clicking anywhere on page focuses editor */
 .page-content,
 .page {
     cursor: text;
