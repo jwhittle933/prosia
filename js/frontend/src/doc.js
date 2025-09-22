@@ -2,7 +2,7 @@ import { DOMParser } from "prosemirror-model";
 import { schema } from "./editor/schema.js";
 
 const htmlContent = `
-<p class="screenplay-scene">INT. HAWKINS POLICE STATION - MORNING</p>
+<p class="screenplay-scene-heading">INT. HAWKINS POLICE STATION - MORNING</p>
 <p class="screenplay-action">The small-town police station is quiet in the early morning light. Coffee brewing in the background. CHIEF JIM HOPPER sits at his desk, steam rising from his mug.</p>
 <p class="screenplay-character">HOPPER</p>
 <p class="screenplay-dialogue">You know what I always say...</p>
@@ -21,4 +21,11 @@ const htmlContent = `
 const tempDiv = document.createElement("div");
 tempDiv.innerHTML = htmlContent;
 
-export const doc = DOMParser.fromSchema(schema).parse(tempDiv);
+// Parse the HTML content using ProseMirror's DOMParser
+const domParser = DOMParser.fromSchema(schema);
+export const doc = domParser.parse(tempDiv);
+
+// Alternative: Create a simple empty document with just an empty paragraph
+// export const doc = schema.node("doc", null, [
+//   schema.node("paragraph", { class: "screenplay-action" })
+// ]);

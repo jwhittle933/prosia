@@ -1,3 +1,6 @@
+import { sendableSteps, getVersion } from "prosemirror-collab"
+import { Step } from "prosemirror-transform"
+
 class DocumentClient {
     constructor(url) {
         this.url = url;
@@ -5,15 +8,16 @@ class DocumentClient {
         this.onConnected = null;
         this.onConnectionError = null;
         this.onParticipantUpdate = null;
+        this.onStepsReceived = null;
         this.onDocumentUpdate = null;
         this.isConnecting = false;
         this.isDestroyed = false;
         this.clientId = null;
+        this.getEditorView = null;
 
-        this.lastSentDocumentHash = null;
         this.syncTimer = null;
-        this.pendingSync = false;
-        this.getCurrentDocumentState = null;
+        this.pendingSteps = [];
+        this.stepsSent = 0;
     }
 
     connect() {
@@ -49,7 +53,8 @@ class DocumentClient {
 
                         this.handleMessage(message);
 
-                        if (message.type === 'init') {
+                        // FIXED: Check for both 'connected' and 'init' for backward compatibility
+                        if (message.type === 'connected' || message.type === 'init') {
                             this.clientId = message.clientId;
                             console.log('Received initial document with', message.totalParticipants, 'participants');
 
@@ -97,31 +102,99 @@ class DocumentClient {
         if (this.isDestroyed) return;
 
         switch (message.type) {
+            case 'connected':
+            case 'init':  // Handle both for compatibility
+                console.log('Received connected message:', message);
+                this.clientId = message.clientId;
+                if (this.onConnected) {
+                    this.onConnected(message);
+                }
+                break;
+
+            case 'steps':
+                this.handleStepsReceived(message);
+                break;
+
+            case 'stepAck':
+                console.log('Received step acknowledgment:', message);
+                this.handleStepAck(message);
+                break;
+
             case 'participantUpdate':
-                console.log(`Participant update received: ${message.totalParticipants} participants`);
+            case 'participant-update':  // Handle both for compatibility
                 if (this.onParticipantUpdate) {
                     this.onParticipantUpdate(message);
                 }
                 break;
 
             case 'documentUpdate':
-                console.log('Document update received from server');
+            case 'document-update':  // Handle both for compatibility
                 if (this.onDocumentUpdate) {
                     this.onDocumentUpdate(message);
                 }
                 break;
 
-            case 'documentUpdateAck':
-                console.log('Document update acknowledged:', message);
-                this.pendingSync = false;
-                break;
-
-            case 'pong':
-                break;
+            default:
+                console.log('Unknown message type:', message.type);
         }
     }
 
-    startSync(getCurrentDocument) {
+    handleStepsReceived(message) {
+        if (!this.getEditorView || !this.onStepsReceived) {
+            console.warn('No editor view or steps handler available');
+            return;
+        }
+
+        try {
+            console.log('Processing received steps:', message);
+
+            // FIXED: Get schema from the editor view instead of the message
+            const view = this.getEditorView();
+            if (!view || !view.state || !view.state.schema) {
+                console.error('No editor view or schema available for step processing');
+                return;
+            }
+
+            const schema = view.state.schema;
+
+            // FIXED: Handle the steps structure properly
+            const steps = message.steps.map(stepData => {
+                // stepData might be the step JSON directly, or wrapped in an object
+                const stepJSON = stepData.step || stepData;
+                return Step.fromJSON(schema, stepJSON);
+            });
+
+            // FIXED: Extract client IDs properly
+            const clientIDs = message.steps.map(stepData => stepData.clientId || stepData.clientID || this.clientId);
+
+            console.log(`Processed ${steps.length} steps from server`);
+
+            if (this.onStepsReceived) {
+                this.onStepsReceived({
+                    version: message.version,
+                    steps,
+                    clientIDs
+                });
+            }
+        } catch (error) {
+            console.error('Error handling received steps:', error);
+            console.error('Message structure:', message);
+        }
+    }
+
+    handleStepAck(message) {
+        const acknowledgedSteps = message.stepsSent;
+        this.stepsSent -= acknowledgedSteps;
+        this.pendingSteps.splice(0, acknowledgedSteps);
+
+        if (this.stepsSent < 0) {
+            console.warn('Step acknowledgment mismatch, resetting');
+            this.stepsSent = 0;
+            this.pendingSteps = [];
+        }
+    }
+
+    startSync(getEditorView) {
         if (this.isDestroyed) {
             console.log('Client is destroyed, not starting sync');
             return;
@@ -131,71 +204,125 @@ class DocumentClient {
             this.stopSync();
         }
 
-        this.getCurrentDocument = getCurrentDocument;
+        this.getEditorView = getEditorView;
 
+        // FIXED: Reduce sync frequency to prevent spamming
         this.syncTimer = setInterval(() => {
             if (!this.isDestroyed) {
-                this.syncDocument();
+                this.syncSteps();
             }
-        }, 5000);
+        }, 1000); // Increased to 1 second to reduce load
 
-        console.log('Document sync started (5 second intervals)');
+        console.log('Step sync started (1000ms intervals)');
     }
 
     stopSync() {
         if (this.syncTimer) {
             clearInterval(this.syncTimer);
             this.syncTimer = null;
-            console.log('Document sync stopped');
+            console.log('Step sync stopped');
         }
     }
 
-    syncDocument() {
-        if (this.isDestroyed || !this.ws || this.ws.readyState !== WebSocket.OPEN || this.pendingSync) {
+    syncSteps() {
+        if (this.isDestroyed || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            return;
+        }
+
+        if (!this.getEditorView) {
             return;
         }
 
         try {
-            let currentDoc;
-
-            if (this.getCurrentDocument) {
-                currentDoc = this.getCurrentDocument();
-            } else if (this.getCurrentDocumentState) {
-                currentDoc = this.getCurrentDocumentState();
-            }
-
-            if (!currentDoc) {
-                console.log('No document available for sync');
+            const view = this.getEditorView();
+            if (!view || !view.state) {
                 return;
             }
 
-            const currentDocHash = JSON.stringify(currentDoc.toJSON());
+            const sendable = sendableSteps(view.state);
 
-            if (currentDocHash === this.lastSentDocumentHash) {
-                console.log('No document changes detected, skipping sync');
+            if (!sendable || !sendable.steps || !sendable.steps.length) {
+                // No steps to send - this is normal, don't log
                 return;
             }
 
-            console.log('Document changes detected, syncing to server...');
-            this.pendingSync = true;
-            this.lastSentDocumentHash = currentDocHash;
+            console.log(`SyncSteps: Found ${sendable.steps.length} steps to send, version: ${sendable.version}`);
 
-            this.ws.send(JSON.stringify({
-                type: 'documentUpdate',
-                doc: currentDoc.toJSON(),
-                clientId: this.clientId,
+            // Convert steps to JSON for transmission
+            const stepsData = sendable.steps.map((step, index) => {
+                console.log(`SyncSteps: Step ${index}:`, step);
+                return {
+                    step: step.toJSON(),
+                    clientId: sendable.clientID
+                };
+            });
+
+            this.pendingSteps.push(...sendable.steps);
+            this.stepsSent += sendable.steps.length;
+
+            const message = {
+                type: 'steps',
+                version: sendable.version,
+                steps: stepsData,
+                clientID: sendable.clientID,
                 timestamp: new Date().toISOString()
-            }));
+            };
+
+            console.log('SyncSteps: Sending message:', message);
+            this.ws.send(JSON.stringify(message));
 
         } catch (error) {
-            console.error('Error syncing document:', error);
-            this.pendingSync = false;
+            console.error('SyncSteps: Error syncing steps:', error);
         }
     }
 
-    forceSyncDocument() {
-        this.lastSentDocumentHash = null;
-        this.syncDocument();
+    sendStep(step) {
+        if (this.isDestroyed || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            return false;
+        }
+
+        try {
+            const view = this.getEditorView();
+            if (!view || !view.state) {
+                return false;
+            }
+
+            const version = getVersion(view.state);
+
+            console.log('Sending immediate step to server');
+
+            this.pendingSteps.push(step);
+            this.stepsSent += 1;
+
+            this.ws.send(JSON.stringify({
+                type: 'steps',
+                version: version,
+                steps: [{
+                    step: step.toJSON(),
+                    clientId: this.clientId
+                }],
+                clientID: this.clientId,
+                timestamp: new Date().toISOString()
+            }));
+
+            return true;
+        } catch (error) {
+            console.error('Error sending step:', error);
+            return false;
+        }
+    }
+
+    getCollabState() {
+        const view = this.getEditorView();
+        if (!view || !view.state) {
+            return null;
+        }
+
+        return {
+            version: getVersion(view.state),
+            pendingSteps: this.pendingSteps.length,
+            stepsSent: this.stepsSent
+        };
     }
 
     disconnect() {
@@ -207,6 +334,10 @@ class DocumentClient {
             this.ws.close(1000, 'Normal closure');
             this.ws = null;
         }
+
+        // Clear pending state
+        this.pendingSteps = [];
+        this.stepsSent = 0;
     }
 }
 

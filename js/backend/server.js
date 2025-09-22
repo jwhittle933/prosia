@@ -25,16 +25,36 @@ wss.on('connection', (ws) => {
       console.log(`Received message from ${clientId}:`, data.type);
 
       switch (data.type) {
+        case 'steps':
+          const result = documentManager.handleSteps(clientId, {
+            version: data.version,
+            steps: data.steps,
+            clientID: data.clientID,
+            timestamp: data.timestamp
+          });
+
+          // Send acknowledgment back to sender
+          ws.send(
+            JSON.stringify({
+              type: 'stepAck',
+              success: result.success,
+              stepsSent: data.steps.length,
+              currentVersion: result.version,
+              error: result.error
+            })
+          );
+          break;
+
         case 'documentUpdate':
-          const result = documentManager.updateDocument(clientId, data.doc);
+          const updateResult = documentManager.updateDocument(clientId, data.doc);
 
           ws.send(
             JSON.stringify({
               type: 'documentUpdateAck',
-              success: result.success,
-              version: result.version,
-              noChanges: result.noChanges,
-              error: result.error
+              success: updateResult.success,
+              version: updateResult.version,
+              noChanges: updateResult.noChanges,
+              error: updateResult.error
             })
           );
           break;
@@ -48,6 +68,21 @@ wss.on('connection', (ws) => {
       }
     } catch (error) {
       console.error('Error processing message:', error);
+
+      // Send error response if we can determine the message type
+      try {
+        const data = JSON.parse(message);
+        if (data.type === 'steps') {
+          ws.send(JSON.stringify({
+            type: 'stepAck',
+            success: false,
+            stepsSent: 0,
+            error: 'Server error processing steps'
+          }));
+        }
+      } catch (parseError) {
+        // Ignore parse errors in error handler
+      }
     }
   });
 
