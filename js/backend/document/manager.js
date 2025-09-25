@@ -7,7 +7,7 @@ const { Step } = require('prosemirror-transform');
 class DocumentManager {
     constructor() {
         this.doc = createDocument();
-        this.version = 0;
+        this.version = 1;
         this.steps = [];
         this.clients = new Map();
         this.lastDocumentHash = this.getDocumentHash();
@@ -327,8 +327,22 @@ class DocumentManager {
             doc: this.doc.toJSON(),
             version: this.version,
             totalParticipants: this.clients.size,
-            stepHistory: this.steps.length
+            stepHistory: this.steps.length,
+            steps: this.steps
         };
+    }
+
+    addSteps(steps) {
+        this.version += steps.length;
+        this.steps = this.steps.concat(steps);
+    }
+
+    getSteps(version) {
+        let start = this.steps.length - (this.version - version)
+        return {
+            steps: this.steps.slice(start),
+            users: this.clients.size
+        }
     }
 
     getClientStats() {

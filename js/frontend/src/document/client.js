@@ -1,5 +1,22 @@
 import { sendableSteps, getVersion } from "prosemirror-collab"
 import { Step } from "prosemirror-transform"
+import axios from "axios"
+
+export const getDocument = () => {
+    return axios.get("http://localhost:3001/api/document")
+}
+
+export const getDocumentSteps = (version) => {
+    return axios.get(`http://localhost:3001/api/document/steps?version=${version}`)
+}
+
+export const postDocumentSteps = (version, steps) => {
+    return axios.post(`http://localhost:3001/api/document/steps`, {
+        version,
+        steps: steps.map(step => step.toJSON())
+    })
+}
+
 
 class DocumentClient {
     constructor(url) {

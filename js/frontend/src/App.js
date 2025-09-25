@@ -1,4 +1,5 @@
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef, use } from "react";
+import { Step } from 'prosemirror-transform'
 import { EditorState } from "prosemirror-state";
 import { baseKeymap, toggleMark, splitBlock } from "prosemirror-commands";
 import { gapCursor } from "prosemirror-gapcursor";
@@ -12,9 +13,9 @@ import { ProseMirror, useEditorEffect } from "@handlewithcare/react-prosemirror"
 
 import { Toolbar } from './components/toolbar.js';
 import PaginatedEditor, { paginationPlugin } from './components/paginatedEditor.js';
-import DocumentClient from './document/client.js';
+import DocumentClient, { getDocument, getDocumentSteps, postDocumentSteps } from './document/client.js';
 
-import { doc } from "./doc.js";
+import { doc as initialDoc } from "./doc.js";
 import { schema } from "./editor/schema.js";
 
 import './App.css';
@@ -133,6 +134,9 @@ function App() {
   const [participantCount, setParticipantCount] = useState(1);
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
+  const [doc, setDoc] = useState(initialDoc);
+  const [docVersion, setDocVersion] = useState(1);
+
   const clientRef = useRef(null);
   const hasInitialized = useRef(false);
   const editorViewRef = useRef(null);
@@ -167,6 +171,68 @@ function App() {
       throw error;
     }
   }, []);
+
+  const dispatchTransaction = useCallback((tr) => {
+    console.log('Dispatching...');
+    try {
+      if (!state) {
+        console.warn('No state available for transaction');
+        return;
+      }
+
+      if (editorViewRef.current && tr.selection) {
+        lastCursorPosition.current = tr.selection.from;
+      }
+
+      if (isReceivingUpdate.current) {
+        console.log('Skipping state update - receiving server update');
+        return;
+      }
+
+      const newState = state.apply(tr);
+      setState(newState);
+    } catch (error) {
+      console.error('Error in dispatchTransaction:', error);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    getDocument().then(({ data }) => {
+      if (data) {
+        console.log('Fetched initial document from server:', data);
+        const serverDoc = schema.nodeFromJSON(data.doc);
+        setDoc(serverDoc);
+        setDocVersion(data.version || 1);
+
+        const editorState = createEditorState(serverDoc, data.version);
+        setState(editorState);
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    // poll the server for changes
+    // and dispatch the changes to the local
+    // copy of the document.
+    let id = setInterval(() => {
+      getDocumentSteps(docVersion).then(response => {
+        if (response && response.data) {
+          const steps = response.data.steps.map(step => Step.fromJSON(schema, step));
+          console.log(steps)
+          const tr = receiveTransaction(
+            state,
+            steps,
+            []
+          );
+
+          dispatchTransaction(tr)
+        }
+      });
+    }, 2000);
+
+    return () => clearInterval(id);
+  }, [docVersion, state]);
+
 
   const startSyncIfReady = useCallback(() => {
     if (syncStarted.current || !clientRef.current || clientRef.current.isDestroyed || !editorViewRef.current) {
@@ -209,217 +275,195 @@ function App() {
     }
   }, [startSyncIfReady]);
 
-  const dispatchTransaction = useCallback((tr) => {
-    try {
-      if (!state) {
-        console.warn('No state available for transaction');
-        return;
-      }
 
-      if (editorViewRef.current && tr.selection) {
-        lastCursorPosition.current = tr.selection.from;
-      }
+  // useEffect(() => {
+  //   if (hasInitialized.current) {
+  //     return;
+  //   }
+  //   hasInitialized.current = true;
 
-      if (isReceivingUpdate.current) {
-        console.log('Skipping state update - receiving server update');
-        return;
-      }
+  //   console.log('Initializing collaboration client');
+  //   const client = new DocumentClient('ws://localhost:3001');
+  //   clientRef.current = client;
 
-      const newState = state.apply(tr);
-      setState(newState);
-    } catch (error) {
-      console.error('Error in dispatchTransaction:', error);
-    }
-  }, [state]);
+  //   client.onConnected = (message) => {
+  //     console.log('Connected to collaboration server');
+  //     setIsConnected(true);
+  //     setConnectionError(null);
+  //     setParticipantCount(message.totalParticipants || 1);
 
-  useEffect(() => {
-    if (hasInitialized.current) {
-      return;
-    }
-    hasInitialized.current = true;
+  //     try {
+  //       const initialDoc = Node.fromJSON(schema, message.doc);
+  //       const editorState = createEditorState(initialDoc, message.version);
+  //       setState(editorState);
+  //     } catch (error) {
+  //       console.error('Error handling connection:', error);
+  //       setConnectionError('Error initializing editor');
+  //     }
+  //   };
 
-    console.log('Initializing collaboration client');
-    const client = new DocumentClient('ws://localhost:3001');
-    clientRef.current = client;
+  //   client.onStepsReceived = (stepData) => {
+  //     console.log('Received steps from server:', stepData.steps.length, 'version:', stepData.version);
 
-    client.onConnected = (message) => {
-      console.log('Connected to collaboration server');
-      setIsConnected(true);
-      setConnectionError(null);
-      setParticipantCount(message.totalParticipants || 1);
+  //     if (!editorViewRef.current) {
+  //       console.warn('No editor view available to apply steps');
+  //       return;
+  //     }
 
-      try {
-        const initialDoc = Node.fromJSON(schema, message.doc);
-        const editorState = createEditorState(initialDoc, message.version);
-        setState(editorState);
-      } catch (error) {
-        console.error('Error handling connection:', error);
-        setConnectionError('Error initializing editor');
-      }
-    };
+  //     if (isReceivingUpdate.current) {
+  //       console.log('Already processing an update, skipping steps');
+  //       return;
+  //     }
 
-    client.onStepsReceived = (stepData) => {
-      console.log('Received steps from server:', stepData.steps.length, 'version:', stepData.version);
+  //     isReceivingUpdate.current = true;
 
-      if (!editorViewRef.current) {
-        console.warn('No editor view available to apply steps');
-        return;
-      }
+  //     try {
+  //       const currentState = editorViewRef.current.state;
+  //       const currentVersion = getVersion(currentState);
 
-      if (isReceivingUpdate.current) {
-        console.log('Already processing an update, skipping steps');
-        return;
-      }
+  //       console.log('Current version:', currentVersion, 'Received version:', stepData.version);
 
-      isReceivingUpdate.current = true;
+  //       const tr = receiveTransaction(
+  //         currentState,
+  //         stepData.steps,
+  //         stepData.clientIDs
+  //       );
 
-      try {
-        const currentState = editorViewRef.current.state;
-        const currentVersion = getVersion(currentState);
+  //       if (tr) {
+  //         console.log('Applying received transaction with', stepData.steps.length, 'steps');
 
-        console.log('Current version:', currentVersion, 'Received version:', stepData.version);
+  //         editorViewRef.current.dispatch(tr);
 
-        const tr = receiveTransaction(
-          currentState,
-          stepData.steps,
-          stepData.clientIDs
-        );
+  //         const newState = editorViewRef.current.state;
+  //         setState(newState);
 
-        if (tr) {
-          console.log('Applying received transaction with', stepData.steps.length, 'steps');
+  //         console.log('Applied steps, new version:', getVersion(newState));
+  //         setLastSyncTime(new Date().toLocaleTimeString());
+  //       }
+  //     } catch (error) {
+  //       console.error('Error applying received steps:', error);
+  //     } finally {
+  //       setTimeout(() => {
+  //         isReceivingUpdate.current = false;
+  //       }, 50);
+  //     }
+  //   };
 
-          editorViewRef.current.dispatch(tr);
+  //   client.onStepAck = (message) => {
+  //     console.log('Received step acknowledgment:', message);
 
-          const newState = editorViewRef.current.state;
-          setState(newState);
+  //     if (!message.success) {
+  //       console.warn('Step was rejected by server:', message.error);
+  //       return;
+  //     }
 
-          console.log('Applied steps, new version:', getVersion(newState));
-          setLastSyncTime(new Date().toLocaleTimeString());
-        }
-      } catch (error) {
-        console.error('Error applying received steps:', error);
-      } finally {
-        setTimeout(() => {
-          isReceivingUpdate.current = false;
-        }, 50);
-      }
-    };
+  //     console.log('Step acknowledged successfully');
+  //   };
 
-    client.onStepAck = (message) => {
-      console.log('Received step acknowledgment:', message);
+  //   client.onParticipantUpdate = (message) => {
+  //     console.log('Participant count updated:', message.totalParticipants);
+  //     setParticipantCount(message.totalParticipants);
+  //   };
 
-      if (!message.success) {
-        console.warn('Step was rejected by server:', message.error);
-        return;
-      }
+  //   client.onDocumentUpdate = (message) => {
+  //     console.log('Received document update from server - applying carefully to preserve cursor');
 
-      console.log('Step acknowledged successfully');
-    };
+  //     if (isReceivingUpdate.current) {
+  //       console.log('Already processing an update, skipping');
+  //       return;
+  //     }
 
-    client.onParticipantUpdate = (message) => {
-      console.log('Participant count updated:', message.totalParticipants);
-      setParticipantCount(message.totalParticipants);
-    };
+  //     isReceivingUpdate.current = true;
 
-    client.onDocumentUpdate = (message) => {
-      console.log('Received document update from server - applying carefully to preserve cursor');
+  //     try {
+  //       const currentView = editorViewRef.current;
+  //       if (!currentView) {
+  //         console.warn('No editor view for document update');
+  //         return;
+  //       }
 
-      if (isReceivingUpdate.current) {
-        console.log('Already processing an update, skipping');
-        return;
-      }
+  //       const currentSelection = currentView.state.selection;
+  //       const currentCursor = currentSelection.from;
 
-      isReceivingUpdate.current = true;
+  //       console.log('Storing cursor position:', currentCursor);
 
-      try {
-        const currentView = editorViewRef.current;
-        if (!currentView) {
-          console.warn('No editor view for document update');
-          return;
-        }
+  //       const updatedDoc = Node.fromJSON(schema, message.doc);
+  //       const newState = createEditorState(updatedDoc, message.version);
 
-        const currentSelection = currentView.state.selection;
-        const currentCursor = currentSelection.from;
+  //       setState(newState);
 
-        console.log('Storing cursor position:', currentCursor);
+  //       currentView.updateState(newState);
 
-        const updatedDoc = Node.fromJSON(schema, message.doc);
-        const newState = createEditorState(updatedDoc, message.version);
+  //       setTimeout(() => {
+  //         try {
+  //           if (currentView && currentView.state) {
+  //             const maxPos = currentView.state.doc.content.size;
+  //             const restorePos = Math.min(currentCursor, maxPos);
 
-        setState(newState);
+  //             console.log('Restoring cursor to position:', restorePos, 'max:', maxPos);
 
-        currentView.updateState(newState);
+  //             const newSelection = TextSelection.create(currentView.state.doc, restorePos);
+  //             const tr = currentView.state.tr.setSelection(newSelection);
+  //             currentView.dispatch(tr);
 
-        setTimeout(() => {
-          try {
-            if (currentView && currentView.state) {
-              const maxPos = currentView.state.doc.content.size;
-              const restorePos = Math.min(currentCursor, maxPos);
+  //             currentView.focus();
+  //           }
+  //         } catch (error) {
+  //           console.error('Error restoring cursor position:', error);
+  //         }
+  //       }, 10);
 
-              console.log('Restoring cursor to position:', restorePos, 'max:', maxPos);
+  //       setLastSyncTime(new Date().toLocaleTimeString());
+  //       console.log('Document updated from server with cursor preservation');
+  //     } catch (error) {
+  //       console.error('Error applying document update:', error);
+  //     } finally {
+  //       setTimeout(() => {
+  //         isReceivingUpdate.current = false;
+  //       }, 100);
+  //     }
+  //   };
 
-              const newSelection = TextSelection.create(currentView.state.doc, restorePos);
-              const tr = currentView.state.tr.setSelection(newSelection);
-              currentView.dispatch(tr);
+  //   client.onConnectionError = (error) => {
+  //     console.error('Connection error:', error);
+  //     setConnectionError('Backend server not running - using offline mode');
+  //     setIsConnected(false);
+  //     setParticipantCount(1);
 
-              currentView.focus();
-            }
-          } catch (error) {
-            console.error('Error restoring cursor position:', error);
-          }
-        }, 10);
+  //     try {
+  //       const fallbackState = createEditorState(doc);
+  //       setState(fallbackState);
+  //     } catch (createError) {
+  //       console.error('Error creating fallback state:', createError);
+  //       setConnectionError('Critical error: Cannot initialize editor');
+  //     }
+  //   };
 
-        setLastSyncTime(new Date().toLocaleTimeString());
-        console.log('Document updated from server with cursor preservation');
-      } catch (error) {
-        console.error('Error applying document update:', error);
-      } finally {
-        setTimeout(() => {
-          isReceivingUpdate.current = false;
-        }, 100);
-      }
-    };
+  //   client.connect().catch(error => {
+  //     console.error('Failed to connect to server:', error);
+  //     setConnectionError('Backend server not running - using offline mode');
+  //     setIsConnected(false);
+  //     setParticipantCount(1);
 
-    client.onConnectionError = (error) => {
-      console.error('Connection error:', error);
-      setConnectionError('Backend server not running - using offline mode');
-      setIsConnected(false);
-      setParticipantCount(1);
+  //     try {
+  //       const fallbackState = createEditorState(doc);
+  //       setState(fallbackState);
+  //     } catch (createError) {
+  //       console.error('Error creating fallback state:', createError);
+  //       setConnectionError('Critical error: Cannot initialize editor');
+  //     }
+  //   });
 
-      try {
-        const fallbackState = createEditorState(doc);
-        setState(fallbackState);
-      } catch (createError) {
-        console.error('Error creating fallback state:', createError);
-        setConnectionError('Critical error: Cannot initialize editor');
-      }
-    };
-
-    client.connect().catch(error => {
-      console.error('Failed to connect to server:', error);
-      setConnectionError('Backend server not running - using offline mode');
-      setIsConnected(false);
-      setParticipantCount(1);
-
-      try {
-        const fallbackState = createEditorState(doc);
-        setState(fallbackState);
-      } catch (createError) {
-        console.error('Error creating fallback state:', createError);
-        setConnectionError('Critical error: Cannot initialize editor');
-      }
-    });
-
-    return () => {
-      console.log('Cleaning up collaboration client');
-      if (clientRef.current) {
-        clientRef.current.disconnect();
-        clientRef.current = null;
-      }
-      hasInitialized.current = false;
-      syncStarted.current = false;
-    };
-  }, [createEditorState]);
+  //   return () => {
+  //     console.log('Cleaning up collaboration client');
+  //     if (clientRef.current) {
+  //       clientRef.current.disconnect();
+  //       clientRef.current = null;
+  //     }
+  //     hasInitialized.current = false;
+  //     syncStarted.current = false;
+  //   };
+  // }, [createEditorState]);
 
   if (!state) {
     return (

@@ -3,6 +3,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const cors = require('cors');
 const DocumentManager = require('./document/manager');
+const { Step } = require("prosemirror-transform");
 
 const app = express();
 const server = http.createServer(app);
@@ -97,6 +98,27 @@ wss.on('connection', (ws) => {
 
 app.get('/api/document', (req, res) => {
   res.json(documentManager.getDocument());
+});
+
+app.get('/api/document/steps', (req, res) => {
+  let v = req.query.version;
+
+  res.json(documentManager.getSteps(v));
+});
+
+app.post('/api/document/steps', (req, res) => {
+  let v = req.body.version;
+  let steps = req.body.steps.map(s => Step.fromJSON(schema, s));
+
+  let doc = documentManager.getDocument();
+  steps.forEach(step => {
+    let result = step.apply(doc);
+    doc = result.doc;
+  });
+
+  documentManager.addSteps(steps);
+
+  res.json({ version: documentManager.version });
 });
 
 app.get('/api/health', (req, res) => {

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@handlewithcare/react-prosemirror": "^2.5.2",
+    "axios": "^1.12.2",
     "prosemirror-collab": "^1.3.1",
     "prosemirror-commands": "^1.5.2",
     "prosemirror-gapcursor": "^1.3.2",

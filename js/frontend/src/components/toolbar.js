@@ -63,14 +63,23 @@ function Toolbar() {
 
         const $from = state.doc.resolve(from);
         const paragraph = $from.node($from.depth);
-        const paragraphPos = $from.before($from.depth);
+        const position = $from.depth === 0 ? 0 : $from.before($from.depth);
+        const { attrs } = paragraph;
 
-        const tr = state.tr.setNodeMarkup(paragraphPos, null, {
-            ...paragraph.attrs,
-            class: formatClass
-        });
+        if (attrs.class && attrs.class === formatClass) {
+            const tr = state.tr.setNodeMarkup(position, null, {
+                ...attrs,
+                class: null
+            });
+            dispatch(tr);
+        } else {
+            const tr = state.tr.setNodeMarkup(position, null, {
+                ...attrs,
+                class: formatClass
+            });
+            dispatch(tr);
+        }
 
-        dispatch(tr);
         view.focus();
     };
 
