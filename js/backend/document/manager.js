@@ -333,6 +333,13 @@ class DocumentManager {
     }
 
     addSteps(steps) {
+        let doc = this.doc
+        steps.forEach(step => {
+            let result = step.apply(this.doc);
+            doc = result.doc;
+        });
+
+        this.doc = doc
         this.version += steps.length;
         this.steps = this.steps.concat(steps);
     }

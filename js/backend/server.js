@@ -4,6 +4,7 @@ const http = require('http');
 const cors = require('cors');
 const DocumentManager = require('./document/manager');
 const { Step } = require("prosemirror-transform");
+const { schema } = require('./document/schema')
 
 const app = express();
 const server = http.createServer(app);
@@ -106,17 +107,8 @@ app.get('/api/document/steps', (req, res) => {
   res.json(documentManager.getSteps(v));
 });
 
-app.post('/api/document/steps', (req, res) => {
-  let v = req.body.version;
-  let steps = req.body.steps.map(s => Step.fromJSON(schema, s));
-
-  let doc = documentManager.getDocument();
-  steps.forEach(step => {
-    let result = step.apply(doc);
-    doc = result.doc;
-  });
-
-  documentManager.addSteps(steps);
+app.post('/api/document/steps', ({ body: { steps } }, res) => {
+  documentManager.addSteps(steps.map(s => Step.fromJSON(schema, s)));
 
   res.json({ version: documentManager.version });
 });

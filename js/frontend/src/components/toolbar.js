@@ -83,6 +83,21 @@ function Toolbar() {
         view.focus();
     };
 
+    const clearFormat = useEditorEventCallback((view) => {
+        const { state, dispatch } = view;
+        const { selection } = state;
+        const $from = state.doc.resolve(selection.from);
+        const paragraph = $from.node($from.depth);
+        const position = $from.depth === 0 ? 0 : $from.before($from.depth);
+
+        const tr = state.tr.setNodeMarkup(position, null, {
+            ...paragraph.attrs,
+            class: null
+        });
+        dispatch(tr);
+        view.focus();
+    });
+
     const applySceneFormat = useEditorEventCallback((view) => {
         applyScreenplayFormat(view, 'screenplay-scene');
     });
@@ -107,20 +122,6 @@ function Toolbar() {
         applyScreenplayFormat(view, 'screenplay-transition');
     });
 
-    const clearFormat = useEditorEventCallback((view) => {
-        const { state, dispatch } = view;
-        const { selection } = state;
-        const $from = state.doc.resolve(selection.from);
-        const paragraph = $from.node($from.depth);
-        const paragraphPos = $from.before($from.depth);
-
-        const tr = state.tr.setNodeMarkup(paragraphPos, null, {
-            ...paragraph.attrs,
-            class: null
-        });
-        dispatch(tr);
-        view.focus();
-    });
 
     return (
         <div className="toolbar-sticky">
